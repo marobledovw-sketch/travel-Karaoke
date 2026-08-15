@@ -41,7 +41,10 @@
     margin:0 auto;
     position:sticky;
     top:0;
-    background:linear-gradient(180deg, var(--bg1) 70%, transparent);
+    /* Fondo sólido (no degradado a transparente): así, si una tarjeta
+       queda detrás al desplegar otra cercana, se oculta limpiamente en
+       vez de mezclar su texto con el de esta barra. */
+    background:var(--bg1);
     z-index:5;
     padding-top:8px;
     padding-bottom:8px;
@@ -135,11 +138,15 @@
      transición de .song-details, la carátula la sigue en cada fotograma y
      el crecimiento se ve igual de suave aunque su alto no sea animable.
      El ancho lo sincroniza JS (activarCoverCuadrada) para que se mantenga
-     siempre cuadrada, igual al alto real en cada instante. */
+     siempre cuadrada, igual al alto real en cada instante — pero SIN pasar
+     nunca del 50% de la fila, para que en pantallas de móvil los datos
+     (título, letra, nombre, botón) nunca se queden con menos de la mitad
+     del ancho disponible. */
   .song-card.active .cover{
     height:auto; align-self:stretch; border-radius:16px;
+    max-width:calc(50% - 6px);
   }
-  .song-right{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .song-right{flex:1; min-width:50%; display:flex; flex-direction:column;}
   .song-toprow{
     display:flex;
     align-items:center;
@@ -299,6 +306,7 @@
   const countEl = document.getElementById('count');
   const searchInput = document.getElementById('searchInput');
   const toast = document.getElementById('toast');
+  const controlsEl = document.querySelector('.controls');
 
   async function cargarCatalogo() {
     if (MODO_LOCAL) {
@@ -608,11 +616,23 @@
   // Sube la tarjeta seleccionada justo debajo de la barra de controles
   // (que es "sticky"), para que el panel desplegado no quede tapado ni
   // se salga por debajo de la pantalla cuando la canción está muy abajo.
+  // Cálculo manual (no scrollIntoView) para controlar exactamente el
+  // destino: nunca sube más de lo necesario para que el borde inferior
+  // de la barra de búsqueda sea el límite superior — la tarjeta queda
+  // justo debajo, nunca tapada ni escondida por encima de la pantalla.
   function subirTarjeta(card) {
-    const controls = document.querySelector('.controls');
-    const margen = (controls ? controls.offsetHeight : 0) + 10;
-    const destino = card.getBoundingClientRect().top + window.pageYOffset - margen;
-    window.scrollTo({ top: Math.max(destino, 0), behavior: 'smooth' });
+    // En móvil, cada vez que la página hace scroll, la barra de direcciones
+    // del navegador tarda unos cientos de ms en terminar de ocultarse o
+    // mostrarse. Mientras dura esa animación, getBoundingClientRect da una
+    // posición que todavía no es la definitiva, así que medir demasiado
+    // pronto (justo tras el scroll anterior) da un destino incorrecto.
+    // Esperamos un poco para que esa transición del navegador ya haya
+    // terminado antes de calcular a dónde hay que desplazarse.
+    setTimeout(() => {
+      const margen = (controlsEl ? controlsEl.offsetHeight : 0) + 10;
+      const destino = card.getBoundingClientRect().top + window.pageYOffset - margen;
+      window.scrollTo({ top: Math.max(destino, 0), behavior: 'smooth' });
+    }, 350);
   }
 
   function cerrarTarjeta(i) {
