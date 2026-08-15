@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Travel Karaoke - Pide tu canción</title>
+<style>
+  :root{
+    /* Fondo estilo Spotify (menos negro) + acentos azul/naranja del logo */
+    --bg1:#1c1e21; --bg2:#141518; --accent:#00ADEF; --accent2:#E8823C;
+    --card:#232527; --card-border:#35373b; --text:#ffffff; --muted:#b3b3b3;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background-color:var(--bg1);
+    background-image:
+      radial-gradient(circle at 12% -5%, rgba(0,173,255,.35) 0%, rgba(0,173,255,0) 48%),
+      radial-gradient(circle at 105% 105%, rgba(232,130,60,.28) 0%, rgba(232,130,60,0) 55%);
+    background-attachment:fixed, fixed;
+    color:var(--text);
+    min-height:100vh;
+    padding-bottom:40px;
+  }
+  header{
+    padding:18px 16px 6px;
+    text-align:center;
+  }
+  header .logo{
+    display:block;
+    width:150px;
+    height:auto;
+    margin:0 auto;
+  }
+  header p{margin:2px 0 0; color:var(--muted); font-size:.85rem;}
+
+  .controls{
+    padding:0 16px;
+    max-width:640px;
+    margin:0 auto;
+    position:sticky;
+    top:0;
+    background:linear-gradient(180deg, var(--bg1) 70%, transparent);
+    z-index:5;
+    padding-top:8px;
+    padding-bottom:8px;
+  }
+
+  .orden-toggle{
+    display:flex;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .orden-toggle button{
+    flex:1;
+    padding:10px 6px;
+    border-radius:12px;
+    border:1px solid var(--card-border);
+    background:var(--card);
+    color:var(--muted);
+    font-weight:600;
+    font-size:.82rem;
+    cursor:pointer;
+    transition:.15s;
+  }
+  .orden-toggle button.active{background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#141414; border-color:transparent;}
+
+  .cat-toggle{display:flex; gap:8px; margin-bottom:10px;}
+  .cat-toggle button{
+    flex:1; padding:7px 6px; border-radius:10px;
+    border:1px solid var(--card-border); background:transparent; color:var(--muted);
+    font-weight:600; font-size:.75rem; cursor:pointer;
+  }
+  .cat-toggle button.active{background:var(--card-border); color:var(--text);}
+
+  .search-box{
+    position:relative;
+    margin-bottom:6px;
+  }
+  .search-box input{
+    width:100%;
+    padding:13px 14px 13px 42px;
+    border-radius:14px;
+    border:1px solid var(--card-border);
+    background:var(--card);
+    color:var(--text);
+    font-size:1rem;
+    outline:none;
+  }
+  .search-box input:focus{border-color:var(--accent2);}
+  .search-box::before{
+    content:"🔎";
+    position:absolute;
+    left:14px; top:50%; transform:translateY(-50%);
+    font-size:1rem;
+    opacity:.7;
+  }
+  .search-hint{color:var(--muted); font-size:.72rem; margin:2px 4px 0;}
+  .count{color:var(--muted); font-size:.8rem; margin:10px 4px 4px; max-width:640px; margin-left:auto; margin-right:auto; padding:0 12px;}
+
+  .list{
+    max-width:640px;
+    margin:0 auto;
+    padding:4px 16px 0;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .song-card{
+    background:var(--card);
+    border:1px solid var(--card-border);
+    border-radius:14px;
+    overflow:hidden;
+    transition:border-color .15s;
+  }
+  .song-card.active{border-color:var(--accent2);}
+  .song-row{
+    display:flex;
+    align-items:flex-start;
+    gap:12px;
+    padding:10px 12px;
+  }
+  .cover{
+    width:52px; height:52px; border-radius:10px; flex-shrink:0;
+    background:#282828 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23b3b3b3"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg>') center/60% no-repeat;
+    background-size:cover;
+    background-position:center;
+    cursor:pointer;
+    transition:width .3s ease, height .3s ease, border-radius .3s ease;
+  }
+  /* Al abrir, la carátula deja de tener alto fijo y se estira (align-self:
+     stretch) para ocupar todo el alto de la columna derecha (título+artista,
+     letra, nombre y botón). Como esa columna cambia de alto con la misma
+     transición de .song-details, la carátula la sigue en cada fotograma y
+     el crecimiento se ve igual de suave aunque su alto no sea animable.
+     El ancho lo sincroniza JS (activarCoverCuadrada) para que se mantenga
+     siempre cuadrada, igual al alto real en cada instante. */
+  .song-card.active .cover{
+    height:auto; align-self:stretch; border-radius:16px;
+  }
+  .song-right{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .song-toprow{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    min-height:52px;
+    cursor:pointer;
+  }
+  .song-toprow:active{transform:scale(.99);}
+  .song-info{flex:1; min-width:0;}
+  .song-title{font-weight:600; font-size:.98rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .song-artist{color:var(--muted); font-size:.82rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .chevron{
+    color:var(--muted);
+    font-size:.7rem;
+    flex-shrink:0;
+    transition:transform .2s;
+  }
+  .song-card.active .chevron{transform:rotate(180deg); color:var(--accent2);}
+
+  .empty{text-align:center; color:var(--muted); padding:40px 20px; font-size:.9rem;}
+
+  .letra-grid{
+    display:grid;
+    grid-template-columns:repeat(6, 1fr);
+    gap:8px;
+    padding:8px 0 30px;
+  }
+  .letra-btn{
+    padding:14px 0;
+    border-radius:10px;
+    border:1px solid var(--card-border);
+    background:var(--card);
+    color:var(--text);
+    font-weight:700;
+    font-size:1rem;
+    cursor:pointer;
+  }
+  .letra-btn:active{transform:scale(.95); border-color:var(--accent2);}
+
+  .volver-letras{
+    display:block;
+    width:100%;
+    margin-bottom:10px;
+    padding:11px;
+    border-radius:12px;
+    border:1px solid var(--card-border);
+    background:transparent;
+    color:var(--accent2);
+    font-weight:600;
+    font-size:.85rem;
+    cursor:pointer;
+  }
+
+  /* Panel de detalle desplegable */
+  .song-details{
+    max-height:0;
+    overflow:hidden;
+    transition:max-height .32s ease;
+  }
+  .song-details.open{max-height:200px;}
+  .song-details-inner{
+    padding:2px 14px 16px;
+    border-top:1px solid var(--card-border);
+  }
+  .detail-name-input{
+    width:100%;
+    padding:12px 14px;
+    border-radius:12px;
+    border:1px solid var(--card-border);
+    background:var(--bg1);
+    color:var(--text);
+    font-size:.95rem;
+    outline:none;
+    margin-bottom:10px;
+    box-sizing:border-box;
+  }
+  .detail-name-input:focus{border-color:var(--accent2);}
+  .btn-send-inline{
+    width:100%;
+    padding:12px;
+    border-radius:12px;
+    border:none;
+    font-weight:700;
+    font-size:.95rem;
+    cursor:pointer;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    color:#141414;
+  }
+  .btn-send-inline:disabled{opacity:.5;}
+  .detail-lyrics{display:inline-block; color:var(--accent2); font-size:.8rem; text-decoration:none; margin:12px 0 10px;}
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--accent2); color:#141414; font-weight:700;
+    padding:12px 20px; border-radius:30px; font-size:.9rem;
+    z-index:100; box-shadow:0 4px 20px rgba(0,0,0,.4);
+    display:none;
+  }
+  .toast.show{display:block; animation:fadein .2s;}
+  @keyframes fadein{from{opacity:0; transform:translate(-50%,10px);} to{opacity:1; transform:translate(-50%,0);}}
+
+  .loading{text-align:center; padding:40px; color:var(--muted);}
+</style>
+</head>
+<body>
+
+<header>
+  <img class="logo" src="logo.png" alt="Travel Karaoke">
+  <p>Busca tu canción y pide tu turno</p>
+</header>
+
+<div class="controls">
+  <div class="orden-toggle">
+    <button data-orden="ARTISTA">🎤 Cantante / Grupo (A-Z)</button>
+    <button data-orden="TITULO">🎶 Título canción (A-Z)</button>
+  </div>
+  <div class="cat-toggle">
+    <button data-cat="TODAS" class="active">Todas</button>
+    <button data-cat="General">🎤 General</button>
+    <button data-cat="Infantil">🧒 Infantil</button>
+  </div>
+  <div class="search-box">
+    <input id="searchInput" type="text" placeholder="Busca por cantante, título o palabra clave...">
+  </div>
+  <p class="search-hint">Escribe algo o elige arriba cómo quieres explorar el listado</p>
+</div>
+
+<p class="count" id="count"></p>
+<div class="list" id="list">
+  <div class="loading">Cargando catálogo…</div>
+</div>
+
+<div class="toast" id="toast">¡Petición enviada! 🎉</div>
+
+<script src="catalogo_data.js"></script>
+<script>
+  // ⚠️ CONFIGURACIÓN: cuando tengas tu Google Apps Script desplegado, pega
+  // aquí la URL /exec. Mientras esto diga 'PEGA_AQUI...', la app funciona
+  // en MODO LOCAL: usa el catálogo embebido (catalogo_data.js) y guarda las
+  // peticiones en este mismo navegador (localStorage), sin necesitar internet.
+  const CONFIG = {
+    API_URL: 'https://script.google.com/macros/s/AKfycbygMRctmRpJtSWBKeIMJPq4n5_b7-hrGfqEuPUJU02qYqaSykTNeX3eb8fdCQuw1HpG/exec'
+  };
+  const MODO_LOCAL = !CONFIG.API_URL || CONFIG.API_URL.includes('PEGA_AQUI');
+  const LS_KEY = 'karaoke_solicitudes_local';
+  const LS_CATALOGO_EXTRA = 'karaoke_catalogo_extra';
+
+  let catalogo = [];
+  let filtroCategoria = 'TODAS';
+  let modoOrden = null; // null | 'ARTISTA' | 'TITULO'
+  let letraSeleccionada = null; // null | 'A'..'Z' | '#'
+  let resultadosActuales = [];
+  let idxAbierto = null;
+  const cacheCaratulas = {};
+
+  const listEl = document.getElementById('list');
+  const countEl = document.getElementById('count');
+  const searchInput = document.getElementById('searchInput');
+  const toast = document.getElementById('toast');
+
+  async function cargarCatalogo() {
+    if (MODO_LOCAL) {
+      const base = (typeof CATALOGO_LOCAL !== 'undefined') ? CATALOGO_LOCAL : [];
+      const extra = JSON.parse(localStorage.getItem(LS_CATALOGO_EXTRA) || '[]');
+      catalogo = base.concat(extra);
+      render();
+      return;
+    }
+    try {
+      const res = await fetch(`${CONFIG.API_URL}?action=catalogo`);
+      catalogo = await res.json();
+      render();
+    } catch (err) {
+      listEl.innerHTML = '<div class="empty">No se pudo cargar el catálogo. Avisa al admin.</div>';
+    }
+  }
+
+  function normaliza(str) {
+    return (str || '').toString().toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '');
+  }
+
+  // Campo por el que se ordena/agrupa según el modo elegido (con el
+  // Título como reserva si a la canción todavía no se le asignó Artista).
+  function campoOrden(c) {
+    return modoOrden === 'TITULO' ? c.Titulo : (c.Artista || c.Titulo);
+  }
+
+  function primeraLetra(str) {
+    const limpio = normaliza(str);
+    if (!limpio) return '#';
+    const primerCaracter = limpio.trim()[0] || '#';
+    return /[a-z]/.test(primerCaracter) ? primerCaracter.toUpperCase() : '#';
+  }
+
+  function filtrar() {
+    const q = normaliza(searchInput.value.trim());
+    let resultados = catalogo.filter(c => {
+      if (filtroCategoria !== 'TODAS' && (c.Categoria || 'General') !== filtroCategoria) return false;
+      if (!q) return true;
+      return normaliza(c.Titulo).includes(q) || normaliza(c.Artista).includes(q);
+    });
+
+    if (modoOrden === 'ARTISTA') {
+      // Si a alguna canción todavía no se le ha asignado Artista (ver
+      // catalogo_karaoke.xlsx, filas en amarillo), se ordena por Título
+      // como alternativa para no dejarla suelta en cualquier posición.
+      resultados = resultados.slice().sort((a, b) => {
+        const claveA = normaliza(a.Artista) || normaliza(a.Titulo);
+        const claveB = normaliza(b.Artista) || normaliza(b.Titulo);
+        return claveA.localeCompare(claveB);
+      });
+    } else if (modoOrden === 'TITULO') {
+      resultados = resultados.slice().sort((a, b) => normaliza(a.Titulo).localeCompare(normaliza(b.Titulo)));
+    }
+    return resultados;
+  }
+
+  function render() {
+    idxAbierto = null;
+    const query = searchInput.value.trim();
+
+    // No se vuelca todo el catálogo de golpe: hasta que el usuario no
+    // escribe algo o elige un criterio de orden, se le invita a elegir.
+    if (!query && !modoOrden) {
+      resultadosActuales = [];
+      countEl.textContent = '';
+      listEl.innerHTML = '<div class="empty">👆 Escribe el nombre de una canción/artista, o elige "Cantante / Grupo" o "Título canción" para ver el listado por letras.</div>';
+      return;
+    }
+
+    // Con un criterio elegido y sin buscar por texto, primero se elige
+    // una letra (evita volcar las 1314 canciones de golpe).
+    if (!query && modoOrden && !letraSeleccionada) {
+      renderSelectorLetras();
+      return;
+    }
+
+    let resultados = filtrar();
+    if (!query && modoOrden && letraSeleccionada) {
+      resultados = resultados.filter(c => primeraLetra(campoOrden(c)) === letraSeleccionada);
+    }
+    resultadosActuales = resultados;
+    countEl.textContent = resultados.length + ' canción' + (resultados.length === 1 ? '' : 'es') + ' encontrada' + (resultados.length === 1 ? '' : 's');
+
+    if (resultados.length === 0) {
+      listEl.innerHTML = (!query && modoOrden ? botonVolverLetras() : '') +
+        '<div class="empty">No hay canciones que coincidan con tu búsqueda 🤷</div>';
+      if (!query && modoOrden) enlazarBotonVolver();
+      return;
+    }
+
+    const volver = (!query && modoOrden) ? botonVolverLetras() : '';
+
+    // Al explorar por Cantante/Grupo, lo relevante para el usuario es el
+    // nombre del artista, así que pasa a ser la línea principal (y el
+    // título queda debajo). Si a esa canción no se le pudo asignar
+    // Artista, se usa el Título como principal y se oculta la segunda
+    // línea (la misma regla de reserva que ya usa el orden A-Z).
+    const priorizarArtista = modoOrden === 'ARTISTA';
+
+    listEl.innerHTML = volver + resultados.map((c, i) => {
+      const principal = priorizarArtista ? (c.Artista || c.Titulo) : c.Titulo;
+      const secundario = priorizarArtista ? (c.Artista ? c.Titulo : '') : c.Artista;
+      return `
+      <div class="song-card" data-idx="${i}">
+        <div class="song-row">
+          <div class="cover" id="cover-${i}" data-idx="${i}" data-artista="${escapeAttr(c.Artista)}" data-titulo="${escapeAttr(c.Titulo)}" data-imagen="${escapeAttr(c.Imagen_URL || '')}"></div>
+          <div class="song-right">
+            <div class="song-toprow" data-idx="${i}">
+              <div class="song-info">
+                <div class="song-title">${escapeHtml(principal)}</div>
+                ${secundario ? `<div class="song-artist">${escapeHtml(secundario)}</div>` : ''}
+              </div>
+              <div class="chevron">▾</div>
+            </div>
+            <div class="song-details" id="details-${i}">
+              <div class="song-details-inner">
+                ${c.Enlace_Letra ? `<a class="detail-lyrics" href="${escapeAttr(c.Enlace_Letra)}" target="_blank" rel="noopener">📄 Ver letra (Genius.com)</a>` : ''}
+                <input class="detail-name-input" type="text" placeholder="Tu nombre" maxlength="40" autocomplete="off">
+                <button class="btn-send-inline">Enviar petición 🎶</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    }).join('');
+
+    listEl.querySelectorAll('.song-toprow, .cover').forEach(el => {
+      el.addEventListener('click', () => toggleDetalle(+el.dataset.idx));
+    });
+
+    listEl.querySelectorAll('.btn-send-inline').forEach(btn => {
+      btn.addEventListener('click', () => enviarDesdeTarjeta(+btn.closest('.song-card').dataset.idx, btn));
+    });
+
+    // Las carátulas se cargan solo cuando la tarjeta entra en pantalla
+    // (si no, con miles de canciones se dispararían a la vez y la API
+    // de iTunes empieza a devolver 429 Too Many Requests).
+    listEl.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
+
+    if (volver) enlazarBotonVolver();
+  }
+
+  function renderSelectorLetras() {
+    resultadosActuales = [];
+    countEl.textContent = modoOrden === 'TITULO'
+      ? 'Elige la inicial del título'
+      : 'Elige la inicial del cantante o grupo';
+    const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').concat(['#']);
+    listEl.innerHTML = `
+      <div class="letra-grid">
+        ${letras.map(l => `<button class="letra-btn" data-letra="${l}">${l}</button>`).join('')}
+      </div>
+    `;
+    listEl.querySelectorAll('.letra-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        letraSeleccionada = btn.dataset.letra;
+        render();
+      });
+    });
+  }
+
+  function botonVolverLetras() {
+    return '<button class="volver-letras" id="volverLetras">← Elegir otra letra</button>';
+  }
+
+  function enlazarBotonVolver() {
+    const btn = document.getElementById('volverLetras');
+    if (btn) btn.addEventListener('click', () => { letraSeleccionada = null; render(); });
+  }
+
+  function escapeHtml(str) {
+    return (str || '').toString()
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function escapeAttr(str) {
+    return escapeHtml(str).replace(/"/g, '&quot;');
+  }
+
+  const observadorCaratulas = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        observadorCaratulas.unobserve(entry.target);
+        cargarCaratula(entry.target);
+      }
+    });
+  }, { rootMargin: '400px' });
+
+  async function cargarCaratula(el) {
+    const imagenManual = el.dataset.imagen;
+    if (imagenManual) {
+      el.style.backgroundImage = `url('${imagenManual}')`;
+      return;
+    }
+    const artista = el.dataset.artista;
+    const titulo = el.dataset.titulo;
+    const key = normaliza(`${artista}|${titulo}`);
+    if (cacheCaratulas[key]) {
+      el.style.backgroundImage = `url('${cacheCaratulas[key]}')`;
+      return;
+    }
+    try {
+      const data = await buscarEnItunesConCola(`${artista} ${titulo}`);
+      if (data && data.results && data.results[0] && data.results[0].artworkUrl100) {
+        const url = data.results[0].artworkUrl100.replace('100x100', '300x300');
+        cacheCaratulas[key] = url;
+        el.style.backgroundImage = `url('${url}')`;
+      }
+    } catch (e) { /* si falla, se queda el icono genérico */ }
+  }
+
+  // Máximo de búsquedas simultáneas a iTunes, con una pequeña pausa entre
+  // cada una, para no superar su límite de peticiones por minuto.
+  const COLA_MAX_SIMULTANEAS = 4;
+  let colaActivas = 0;
+  const colaPendientes = [];
+
+  function buscarEnItunesConCola(termino) {
+    return new Promise((resolve) => {
+      colaPendientes.push({ termino, resolve });
+      procesarColaItunes();
+    });
+  }
+
+  function procesarColaItunes() {
+    while (colaActivas < COLA_MAX_SIMULTANEAS && colaPendientes.length > 0) {
+      const { termino, resolve } = colaPendientes.shift();
+      colaActivas++;
+      buscarEnItunes(termino)
+        .then(resolve)
+        .finally(() => {
+          colaActivas--;
+          setTimeout(procesarColaItunes, 200);
+        });
+    }
+  }
+
+  // La API de iTunes no manda cabeceras CORS para fetch() normal, así que
+  // se consulta vía JSONP (un <script> con ?callback=...), que no está
+  // sujeto a esa restricción.
+  let jsonpContador = 0;
+  function buscarEnItunes(termino) {
+    return new Promise((resolve) => {
+      const cbName = `itunesCallback${jsonpContador++}`;
+      const script = document.createElement('script');
+      const limpiar = () => { delete window[cbName]; script.remove(); };
+      window[cbName] = (data) => { resolve(data); limpiar(); };
+      script.onerror = () => { resolve(null); limpiar(); };
+      script.src = `https://itunes.apple.com/search?term=${encodeURIComponent(termino)}&media=music&limit=1&callback=${cbName}`;
+      document.body.appendChild(script);
+    });
+  }
+
+  function toggleDetalle(i) {
+    const previamenteAbierto = idxAbierto;
+    if (previamenteAbierto !== null) cerrarTarjeta(previamenteAbierto);
+
+    if (previamenteAbierto === i) {
+      idxAbierto = null;
+      return;
+    }
+    idxAbierto = i;
+    const details = document.getElementById(`details-${i}`);
+    const card = document.querySelector(`.song-card[data-idx="${i}"]`);
+    if (details) details.classList.add('open');
+    if (card) {
+      card.classList.add('active');
+      subirTarjeta(card);
+      const cover = card.querySelector('.cover');
+      if (cover) activarCoverCuadrada(cover);
+    }
+    const input = details ? details.querySelector('.detail-name-input') : null;
+    if (input) setTimeout(() => input.focus(), 200);
+  }
+
+  // Mientras la carátula está estirada (align-self:stretch) para ocupar el
+  // alto de la columna derecha, este observador ajusta su ancho en cada
+  // fotograma para que sea igual al alto real y así se mantenga cuadrada.
+  const anchosCuadrados = new WeakMap();
+
+  function activarCoverCuadrada(cover) {
+    if (anchosCuadrados.has(cover)) return;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const alto = entry.contentRect.height;
+        const nuevoAncho = `${alto}px`;
+        if (entry.target.style.width !== nuevoAncho) entry.target.style.width = nuevoAncho;
+      }
+    });
+    ro.observe(cover);
+    anchosCuadrados.set(cover, ro);
+  }
+
+  function desactivarCoverCuadrada(cover) {
+    const ro = anchosCuadrados.get(cover);
+    if (ro) {
+      ro.disconnect();
+      anchosCuadrados.delete(cover);
+    }
+    cover.style.width = '';
+  }
+
+  // Sube la tarjeta seleccionada justo debajo de la barra de controles
+  // (que es "sticky"), para que el panel desplegado no quede tapado ni
+  // se salga por debajo de la pantalla cuando la canción está muy abajo.
+  function subirTarjeta(card) {
+    const controls = document.querySelector('.controls');
+    const margen = (controls ? controls.offsetHeight : 0) + 10;
+    const destino = card.getBoundingClientRect().top + window.pageYOffset - margen;
+    window.scrollTo({ top: Math.max(destino, 0), behavior: 'smooth' });
+  }
+
+  function cerrarTarjeta(i) {
+    const details = document.getElementById(`details-${i}`);
+    const card = document.querySelector(`.song-card[data-idx="${i}"]`);
+    if (details) details.classList.remove('open');
+    if (card) {
+      card.classList.remove('active');
+      const cover = card.querySelector('.cover');
+      if (cover) desactivarCoverCuadrada(cover);
+    }
+  }
+
+  async function enviarDesdeTarjeta(i, btn) {
+    const cancion = resultadosActuales[i];
+    const details = document.getElementById(`details-${i}`);
+    const input = details.querySelector('.detail-name-input');
+    const nombre = input.value.trim();
+    if (!nombre) { input.focus(); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Enviando…';
+    try {
+      if (MODO_LOCAL) {
+        guardarSolicitudLocal(cancion, nombre);
+      } else {
+        await fetch(CONFIG.API_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify({
+            action: 'nueva_solicitud',
+            titulo: cancion.Titulo,
+            artista: cancion.Artista,
+            solicitante: nombre,
+            imagenUrl: cancion.Imagen_URL || ''
+          })
+        });
+      }
+      idxAbierto = null;
+      cerrarTarjeta(i);
+      mostrarToast();
+    } catch (e) {
+      alert('No se pudo enviar la petición. Inténtalo de nuevo.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Enviar petición 🎶';
+    }
+  }
+
+  function guardarSolicitudLocal(cancion, nombre) {
+    const lista = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+    lista.push({
+      IdSolicitud: Date.now() + '-' + Math.floor(Math.random() * 10000),
+      Timestamp: new Date().toISOString(),
+      Titulo: cancion.Titulo,
+      Artista: cancion.Artista,
+      Solicitante: nombre,
+      Estado: 'Pendiente',
+      Imagen_URL: cancion.Imagen_URL || ''
+    });
+    localStorage.setItem(LS_KEY, JSON.stringify(lista));
+  }
+
+  function mostrarToast() {
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  document.querySelectorAll('.orden-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const yaActivo = btn.classList.contains('active');
+      document.querySelectorAll('.orden-toggle button').forEach(b => b.classList.remove('active'));
+      letraSeleccionada = null;
+      searchInput.value = ''; // al elegir un modo de exploración, se olvida la búsqueda de texto anterior
+      if (yaActivo) {
+        modoOrden = null;
+      } else {
+        btn.classList.add('active');
+        modoOrden = btn.dataset.orden;
+      }
+      render();
+    });
+  });
+
+  document.querySelectorAll('.cat-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.cat-toggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filtroCategoria = btn.dataset.cat;
+      render();
+    });
+  });
+
+  let debounce;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(render, 150);
+  });
+
+  cargarCatalogo();
+</script>
+</body>
+</html>

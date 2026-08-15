@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Travel Karaoke - Panel Admin</title>
+<style>
+  :root{
+    /* Fondo estilo Spotify (menos negro) + acentos azul/naranja del logo */
+    --bg1:#1c1e21; --bg2:#141518; --accent:#00ADEF; --accent2:#E8823C;
+    --card:#232527; --card-border:#35373b; --text:#ffffff; --muted:#b3b3b3;
+    --ok:#1DB954;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background-color:var(--bg1);
+    background-image:
+      radial-gradient(circle at 12% -5%, rgba(0,173,255,.35) 0%, rgba(0,173,255,0) 48%),
+      radial-gradient(circle at 105% 105%, rgba(232,130,60,.28) 0%, rgba(232,130,60,0) 55%);
+    background-attachment:fixed, fixed;
+    color:var(--text);
+    min-height:100vh;
+    padding-bottom:40px;
+  }
+  header{
+    padding:14px 16px 14px;
+    text-align:center;
+    position:sticky; top:0;
+    background:linear-gradient(180deg, var(--bg1) 75%, transparent);
+    z-index:5;
+  }
+  .btn-ajustes{
+    position:absolute; top:14px; right:16px;
+    width:38px; height:38px; border-radius:10px;
+    border:1px solid var(--card-border); background:var(--card);
+    color:var(--text); font-size:1.1rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .menu-ajustes{
+    display:none;
+    position:absolute; top:58px; right:16px;
+    background:var(--bg1); border:1px solid var(--card-border); border-radius:12px;
+    min-width:220px; z-index:20; overflow:hidden;
+    box-shadow:0 10px 26px rgba(0,0,0,.45);
+    text-align:left;
+  }
+  .menu-ajustes.open{display:block;}
+  .menu-ajustes button{
+    display:block; width:100%; padding:12px 14px; border:none; background:transparent;
+    color:var(--text); font-size:.85rem; font-weight:600; text-align:left; cursor:pointer;
+  }
+  .menu-ajustes button:hover{background:var(--card);}
+  .menu-ajustes button + button{border-top:1px solid var(--card-border);}
+  header .logo{
+    display:block;
+    width:64px;
+    height:auto;
+    margin:0 auto 4px;
+  }
+  header h1{
+    margin:0;
+    font-size:1.2rem;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  header p{margin:4px 0 0; color:var(--muted); font-size:.8rem;}
+  .stats{display:flex; gap:8px; justify-content:center; margin-top:12px;}
+  .stat{
+    background:var(--card); border:1px solid var(--card-border);
+    border-radius:12px; padding:8px 16px; font-size:.85rem; color:var(--muted);
+  }
+  .stat b{color:var(--text); font-size:1.1rem; display:block;}
+
+  .tabs{display:flex; gap:8px; max-width:700px; margin:14px auto 0; padding:0 16px;}
+  .tabs button{
+    flex:1; padding:9px; border-radius:10px; border:1px solid var(--card-border);
+    background:var(--card); color:var(--muted); font-weight:600; font-size:.82rem; cursor:pointer;
+  }
+  .tabs button.active{background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#141414; border-color:transparent;}
+
+  .list{max-width:700px; margin:0 auto; padding:14px 16px 0; display:flex; flex-direction:column; gap:10px;}
+
+  .card{
+    display:flex; align-items:center; gap:12px;
+    background:var(--card); border:1px solid var(--card-border);
+    border-radius:14px; padding:12px;
+  }
+  .card.cantada{opacity:.5;}
+  .cover{
+    width:56px; height:56px; border-radius:10px; flex-shrink:0;
+    background:#282828 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23b3b3b3"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg>') center/60% no-repeat;
+    background-size:cover; background-position:center;
+  }
+  .info{flex:1; min-width:0;}
+  .title{font-weight:700; font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .artist{color:var(--muted); font-size:.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .who{font-size:.8rem; margin-top:2px;}
+  .who b{color:var(--accent2);}
+  .time{color:var(--muted); font-size:.7rem; margin-top:2px;}
+  .actions{display:flex; flex-direction:column; gap:6px; flex-shrink:0;}
+  .actions button{
+    border:none; border-radius:8px; padding:8px 10px; font-size:.75rem; font-weight:700; cursor:pointer; white-space:nowrap;
+  }
+  .btn-ok{background:var(--ok); color:#063820;}
+  .btn-del{background:transparent; color:var(--muted); border:1px solid var(--card-border) !important;}
+
+  .empty{text-align:center; color:var(--muted); padding:50px 20px;}
+  .refresh-note{text-align:center; color:var(--muted); font-size:.72rem; margin-top:18px;}
+
+  .manual-add{max-width:700px; margin:14px auto 0; padding:0 16px;}
+  .manual-add-toggle{
+    display:block; width:100%; padding:11px; border-radius:12px;
+    border:1px dashed var(--card-border); background:transparent;
+    color:var(--accent2); font-weight:600; font-size:.85rem; cursor:pointer;
+  }
+  /* Diálogos modales (petición manual / añadir al repertorio): van en su
+     propia capa por encima de todo, con fondo oscurecido, para que nunca
+     se mezclen visualmente con el listado de solicitudes de debajo. */
+  .dialog-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.65);
+    display:none; align-items:flex-end; justify-content:center;
+    z-index:50; backdrop-filter:blur(2px);
+  }
+  .dialog-overlay.open{display:flex;}
+  .dialog-card{
+    position:relative;
+    background:var(--bg1); border:1px solid var(--card-border);
+    border-top-left-radius:20px; border-top-right-radius:20px;
+    width:100%; max-width:700px; max-height:85vh; overflow-y:auto;
+    box-sizing:border-box; padding:20px;
+    display:flex; flex-direction:column; gap:10px;
+    animation:dialogUp .2s ease-out;
+  }
+  @keyframes dialogUp{from{transform:translateY(30px); opacity:0;} to{transform:translateY(0); opacity:1;}}
+  .dialog-title{font-weight:700; font-size:1.05rem; margin:0 40px 4px 0;}
+  .dialog-close{
+    position:absolute; top:16px; right:16px;
+    width:32px; height:32px; border-radius:50%;
+    border:1px solid var(--card-border); background:var(--card);
+    color:var(--text); font-size:1rem; line-height:1; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .dialog-card input{
+    width:100%; padding:11px 13px; border-radius:10px;
+    border:1px solid var(--card-border); background:var(--card);
+    color:var(--text); font-size:.9rem; outline:none; box-sizing:border-box;
+  }
+  .dialog-card input:focus{border-color:var(--accent2);}
+  .dialog-card select{
+    width:100%; padding:11px 13px; border-radius:10px;
+    border:1px solid var(--card-border); background:var(--card);
+    color:var(--text); font-size:.9rem; outline:none; box-sizing:border-box;
+  }
+  .dialog-card > button{
+    padding:11px; border-radius:10px; border:none; font-weight:700;
+    font-size:.9rem; cursor:pointer;
+    background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#141414;
+  }
+  .dialog-card > button:disabled{opacity:.5;}
+
+  .campo-buscador{position:relative;}
+  .sugerencias{
+    display:none;
+    position:absolute; left:0; right:0; top:calc(100% + 4px);
+    background:var(--card); border:1px solid var(--card-border); border-radius:10px;
+    max-height:220px; overflow-y:auto; z-index:10;
+    box-shadow:0 8px 20px rgba(0,0,0,.4);
+  }
+  .sugerencias.open{display:block;}
+  .sugerencias div{
+    padding:10px 13px; cursor:pointer; font-size:.85rem;
+    border-bottom:1px solid var(--card-border);
+  }
+  .sugerencias div:last-child{border-bottom:none;}
+  .sugerencias div:hover, .sugerencias div.activa{background:var(--bg1);}
+  .sugerencias .sug-artista{color:var(--muted); font-size:.78rem;}
+
+  .campo-label{color:var(--muted); font-size:.72rem; margin:-2px 0 -4px 2px;}
+  .catalogo-add-nota{color:var(--muted); font-size:.75rem; margin:0; line-height:1.4;}
+</style>
+</head>
+<body>
+
+<header>
+  <button type="button" class="btn-ajustes" id="btnAjustes" aria-label="Ajustes">⚙️</button>
+  <div class="menu-ajustes" id="menuAjustes">
+    <button type="button" id="toggleCatalogo">🎶 Añadir canción al repertorio</button>
+  </div>
+  <img class="logo" src="logo.png" alt="Travel Karaoke">
+  <h1>🎧 Panel del Admin</h1>
+  <p>Solicitudes de karaoke en directo</p>
+  <div class="stats">
+    <div class="stat"><b id="statPend">0</b>Pendientes</div>
+    <div class="stat"><b id="statCant">0</b>Cantadas</div>
+  </div>
+</header>
+
+<div class="tabs">
+  <button data-f="pendientes" class="active">Pendientes</button>
+  <button data-f="todas">Todas</button>
+</div>
+
+<div class="manual-add">
+  <button type="button" class="manual-add-toggle" id="toggleManual">➕ Añadir petición manual</button>
+</div>
+
+<div class="dialog-overlay" id="overlayManual">
+  <div class="dialog-card">
+    <button type="button" class="dialog-close" id="cerrarManual" aria-label="Cerrar">✕</button>
+    <p class="dialog-title">Añadir petición manual</p>
+    <div class="campo-buscador">
+      <input type="text" id="manualTitulo" placeholder="Título de la canción (busca en el catálogo)" maxlength="80" autocomplete="off">
+      <div class="sugerencias" id="sugerenciasManual"></div>
+    </div>
+    <input type="text" id="manualArtista" placeholder="Cantante / grupo (opcional)" maxlength="60" autocomplete="off">
+    <input type="text" id="manualSolicitante" placeholder="Nombre del solicitante" maxlength="40" autocomplete="off">
+    <button type="button" id="btnAgregarManual">Añadir a la lista 🎤</button>
+  </div>
+</div>
+
+<div class="dialog-overlay" id="overlayCatalogo">
+  <div class="dialog-card">
+    <button type="button" class="dialog-close" id="cerrarCatalogo" aria-label="Cerrar">✕</button>
+    <p class="dialog-title">Añadir canción al repertorio</p>
+    <p class="catalogo-add-nota">Esto añade una canción nueva al catálogo entero (no una petición), para que a partir de ahora también la puedan buscar y pedir los usuarios.</p>
+    <input type="text" id="catTitulo" placeholder="Título de la canción" maxlength="80" autocomplete="off">
+    <input type="text" id="catArtista" placeholder="Cantante / grupo" maxlength="60" autocomplete="off">
+    <span class="campo-label">Idioma</span>
+    <select id="catIdioma">
+      <option value="ES">Español</option>
+      <option value="EXT">Extranjero</option>
+    </select>
+    <span class="campo-label">Categoría</span>
+    <select id="catCategoria">
+      <option value="General">General</option>
+      <option value="Infantil">Infantil</option>
+    </select>
+    <input type="text" id="catImagenUrl" placeholder="URL de la carátula (opcional)" autocomplete="off">
+    <button type="button" id="btnAgregarCatalogo">Añadir al repertorio 🎶</button>
+  </div>
+</div>
+
+<div class="list" id="list"><div class="empty">Cargando…</div></div>
+<p class="refresh-note">Se actualiza automáticamente cada 6 segundos</p>
+
+<script src="catalogo_data.js"></script>
+<script>
+  // ⚠️ CONFIGURACIÓN: pega aquí la misma URL /exec de tu Google Apps Script.
+  // Mientras esto diga 'PEGA_AQUI...', el panel funciona en MODO LOCAL: lee
+  // las peticiones guardadas en este mismo navegador por index.html (útil
+  // para probar la app en un solo ordenador antes de desplegar el backend).
+  const CONFIG = {
+    API_URL: 'https://script.google.com/macros/s/AKfycbygMRctmRpJtSWBKeIMJPq4n5_b7-hrGfqEuPUJU02qYqaSykTNeX3eb8fdCQuw1HpG/exec'
+  };
+  const MODO_LOCAL = !CONFIG.API_URL || CONFIG.API_URL.includes('PEGA_AQUI');
+  const LS_KEY = 'karaoke_solicitudes_local';
+  const LS_CATALOGO_EXTRA = 'karaoke_catalogo_extra';
+
+  let solicitudes = [];
+  let catalogoCompleto = [];
+  let imagenSeleccionadaManual = '';
+  let filtro = 'pendientes';
+  const cacheCaratulas = {};
+  const listEl = document.getElementById('list');
+
+  function normaliza(str) {
+    return (str || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  }
+
+  async function cargar() {
+    if (MODO_LOCAL) {
+      solicitudes = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+      render();
+      return;
+    }
+    try {
+      const res = await fetch(`${CONFIG.API_URL}?action=solicitudes&_=${Date.now()}`);
+      solicitudes = await res.json();
+      render();
+    } catch (e) {
+      listEl.innerHTML = '<div class="empty">No se pudo conectar. Revisa la URL de configuración.</div>';
+    }
+  }
+
+  // Catálogo completo, usado solo para las sugerencias del buscador al
+  // añadir una petición manual (no para la lista de solicitudes en sí).
+  async function cargarCatalogoCompleto() {
+    let base = [];
+    if (MODO_LOCAL) {
+      base = (typeof CATALOGO_LOCAL !== 'undefined') ? CATALOGO_LOCAL.slice() : [];
+      const extra = JSON.parse(localStorage.getItem(LS_CATALOGO_EXTRA) || '[]');
+      catalogoCompleto = base.concat(extra);
+      return;
+    }
+    try {
+      const res = await fetch(`${CONFIG.API_URL}?action=catalogo`);
+      catalogoCompleto = await res.json();
+    } catch (e) {
+      catalogoCompleto = [];
+    }
+  }
+
+  function render() {
+    const pendientes = solicitudes.filter(s => s.Estado !== 'Cantada');
+    document.getElementById('statPend').textContent = pendientes.length;
+    document.getElementById('statCant').textContent = solicitudes.length - pendientes.length;
+
+    const mostrar = filtro === 'pendientes' ? pendientes : solicitudes;
+
+    if (mostrar.length === 0) {
+      listEl.innerHTML = '<div class="empty">No hay solicitudes' + (filtro === 'pendientes' ? ' pendientes' : '') + ' todavía 🎤</div>';
+      return;
+    }
+
+    listEl.innerHTML = mostrar.map((s, i) => `
+      <div class="card ${s.Estado === 'Cantada' ? 'cantada' : ''}">
+        <div class="cover" id="cover-${i}" data-artista="${escapeAttr(s.Artista)}" data-titulo="${escapeAttr(s.Titulo)}" data-imagen="${escapeAttr(s.Imagen_URL || '')}"></div>
+        <div class="info">
+          <div class="title">${escapeHtml(s.Titulo)}</div>
+          <div class="artist">${escapeHtml(s.Artista)}</div>
+          <div class="who">🙋 <b>${escapeHtml(s.Solicitante)}</b></div>
+          <div class="time">${formatHora(s.Timestamp)}</div>
+        </div>
+        <div class="actions">
+          ${s.Estado !== 'Cantada' ? `<button class="btn-ok" data-id="${s.IdSolicitud}" data-action="cantada">✔ Cantada</button>` : ''}
+          <button class="btn-del" data-id="${s.IdSolicitud}" data-action="eliminar">🗑 Quitar</button>
+        </div>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => manejarAccion(btn.dataset.id, btn.dataset.action));
+    });
+
+    listEl.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
+  }
+
+  function escapeHtml(str) {
+    return (str || '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function escapeAttr(str) {
+    return escapeHtml(str).replace(/"/g, '&quot;');
+  }
+
+  function formatHora(ts) {
+    const d = new Date(ts);
+    if (isNaN(d)) return '';
+    return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  const observadorCaratulas = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        observadorCaratulas.unobserve(entry.target);
+        cargarCaratula(entry.target);
+      }
+    });
+  }, { rootMargin: '400px' });
+
+  async function cargarCaratula(el) {
+    const imagenManual = el.dataset.imagen;
+    if (imagenManual) {
+      el.style.backgroundImage = `url('${imagenManual}')`;
+      return;
+    }
+    const artista = el.dataset.artista;
+    const titulo = el.dataset.titulo;
+    const key = normaliza(`${artista}|${titulo}`);
+    if (cacheCaratulas[key]) {
+      el.style.backgroundImage = `url('${cacheCaratulas[key]}')`;
+      return;
+    }
+    try {
+      const data = await buscarEnItunesConCola(`${artista} ${titulo}`);
+      if (data && data.results && data.results[0] && data.results[0].artworkUrl100) {
+        const url = data.results[0].artworkUrl100.replace('100x100', '300x300');
+        cacheCaratulas[key] = url;
+        el.style.backgroundImage = `url('${url}')`;
+      }
+    } catch (e) { /* icono genérico si falla */ }
+  }
+
+  // Máximo de búsquedas simultáneas a iTunes, con una pequeña pausa entre
+  // cada una, para no superar su límite de peticiones por minuto.
+  const COLA_MAX_SIMULTANEAS = 4;
+  let colaActivas = 0;
+  const colaPendientes = [];
+
+  function buscarEnItunesConCola(termino) {
+    return new Promise((resolve) => {
+      colaPendientes.push({ termino, resolve });
+      procesarColaItunes();
+    });
+  }
+
+  function procesarColaItunes() {
+    while (colaActivas < COLA_MAX_SIMULTANEAS && colaPendientes.length > 0) {
+      const { termino, resolve } = colaPendientes.shift();
+      colaActivas++;
+      buscarEnItunes(termino)
+        .then(resolve)
+        .finally(() => {
+          colaActivas--;
+          setTimeout(procesarColaItunes, 200);
+        });
+    }
+  }
+
+  // La API de iTunes no manda cabeceras CORS para fetch() normal, así que
+  // se consulta vía JSONP (un <script> con ?callback=...), que no está
+  // sujeto a esa restricción.
+  let jsonpContador = 0;
+  function buscarEnItunes(termino) {
+    return new Promise((resolve) => {
+      const cbName = `itunesCallback${jsonpContador++}`;
+      const script = document.createElement('script');
+      const limpiar = () => { delete window[cbName]; script.remove(); };
+      window[cbName] = (data) => { resolve(data); limpiar(); };
+      script.onerror = () => { resolve(null); limpiar(); };
+      script.src = `https://itunes.apple.com/search?term=${encodeURIComponent(termino)}&media=music&limit=1&callback=${cbName}`;
+      document.body.appendChild(script);
+    });
+  }
+
+  async function manejarAccion(id, accion) {
+    // Actualización optimista en pantalla
+    if (accion === 'cantada') {
+      const s = solicitudes.find(s => String(s.IdSolicitud) === String(id));
+      if (s) s.Estado = 'Cantada';
+    } else if (accion === 'eliminar') {
+      solicitudes = solicitudes.filter(s => String(s.IdSolicitud) !== String(id));
+    }
+    render();
+
+    if (MODO_LOCAL) {
+      localStorage.setItem(LS_KEY, JSON.stringify(solicitudes));
+      return;
+    }
+
+    await fetch(CONFIG.API_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify({
+        action: accion === 'cantada' ? 'marcar_cantada' : 'eliminar_solicitud',
+        idSolicitud: id
+      })
+    });
+  }
+
+  document.querySelectorAll('.tabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filtro = btn.dataset.f;
+      render();
+    });
+  });
+
+  const toggleManual = document.getElementById('toggleManual');
+  const overlayManual = document.getElementById('overlayManual');
+  const cerrarManual = document.getElementById('cerrarManual');
+  const manualTitulo = document.getElementById('manualTitulo');
+  const manualArtista = document.getElementById('manualArtista');
+  const manualSolicitante = document.getElementById('manualSolicitante');
+  const btnAgregarManual = document.getElementById('btnAgregarManual');
+
+  function abrirManual() {
+    overlayManual.classList.add('open');
+    setTimeout(() => manualTitulo.focus(), 50);
+  }
+
+  function cerrarDialogoManual() {
+    overlayManual.classList.remove('open');
+    cerrarSugerencias();
+  }
+
+  toggleManual.addEventListener('click', abrirManual);
+  cerrarManual.addEventListener('click', cerrarDialogoManual);
+  overlayManual.addEventListener('click', (e) => { if (e.target === overlayManual) cerrarDialogoManual(); });
+
+  btnAgregarManual.addEventListener('click', async () => {
+    const titulo = manualTitulo.value.trim();
+    const artista = manualArtista.value.trim();
+    const solicitante = manualSolicitante.value.trim();
+    if (!titulo) { manualTitulo.focus(); return; }
+    if (!solicitante) { manualSolicitante.focus(); return; }
+
+    btnAgregarManual.disabled = true;
+    btnAgregarManual.textContent = 'Añadiendo…';
+    try {
+      if (MODO_LOCAL) {
+        const lista = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+        lista.push({
+          IdSolicitud: Date.now() + '-' + Math.floor(Math.random() * 10000),
+          Timestamp: new Date().toISOString(),
+          Titulo: titulo,
+          Artista: artista,
+          Solicitante: solicitante,
+          Estado: 'Pendiente',
+          Imagen_URL: imagenSeleccionadaManual
+        });
+        localStorage.setItem(LS_KEY, JSON.stringify(lista));
+      } else {
+        await fetch(CONFIG.API_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify({
+            action: 'nueva_solicitud',
+            titulo, artista, solicitante,
+            imagenUrl: imagenSeleccionadaManual
+          })
+        });
+      }
+      manualTitulo.value = '';
+      manualArtista.value = '';
+      manualSolicitante.value = '';
+      imagenSeleccionadaManual = '';
+      cerrarDialogoManual();
+      await cargar();
+    } catch (e) {
+      alert('No se pudo añadir la petición. Inténtalo de nuevo.');
+    } finally {
+      btnAgregarManual.disabled = false;
+      btnAgregarManual.textContent = 'Añadir a la lista 🎤';
+    }
+  });
+
+  // --- Sugerencias del catálogo al escribir el título en la petición manual ---
+  const sugerenciasManual = document.getElementById('sugerenciasManual');
+
+  function cerrarSugerencias() {
+    sugerenciasManual.classList.remove('open');
+    sugerenciasManual.innerHTML = '';
+  }
+
+  manualTitulo.addEventListener('input', () => {
+    imagenSeleccionadaManual = ''; // el texto ya no coincide con una selección exacta
+    const q = normaliza(manualTitulo.value.trim());
+    if (!q) { cerrarSugerencias(); return; }
+
+    const coincidencias = catalogoCompleto
+      .filter(c => normaliza(c.Titulo).includes(q) || normaliza(c.Artista).includes(q))
+      .slice(0, 6);
+
+    if (coincidencias.length === 0) { cerrarSugerencias(); return; }
+
+    sugerenciasManual.innerHTML = coincidencias.map((c, i) => `
+      <div data-idx="${i}">
+        ${escapeHtml(c.Titulo)}
+        <div class="sug-artista">${escapeHtml(c.Artista)}</div>
+      </div>
+    `).join('');
+    sugerenciasManual.classList.add('open');
+
+    sugerenciasManual.querySelectorAll('div[data-idx]').forEach(el => {
+      el.addEventListener('click', () => {
+        const c = coincidencias[+el.dataset.idx];
+        manualTitulo.value = c.Titulo;
+        manualArtista.value = c.Artista;
+        imagenSeleccionadaManual = c.Imagen_URL || '';
+        cerrarSugerencias();
+        manualSolicitante.focus();
+      });
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.campo-buscador')) cerrarSugerencias();
+  });
+
+  // --- Añadir canción nueva al repertorio (catálogo completo) ---
+  const toggleCatalogo = document.getElementById('toggleCatalogo');
+  const overlayCatalogo = document.getElementById('overlayCatalogo');
+  const cerrarCatalogo = document.getElementById('cerrarCatalogo');
+  const catTitulo = document.getElementById('catTitulo');
+  const catArtista = document.getElementById('catArtista');
+  const catIdioma = document.getElementById('catIdioma');
+  const catCategoria = document.getElementById('catCategoria');
+  const catImagenUrl = document.getElementById('catImagenUrl');
+  const btnAgregarCatalogo = document.getElementById('btnAgregarCatalogo');
+
+  function cerrarDialogoCatalogo() {
+    overlayCatalogo.classList.remove('open');
+  }
+
+  toggleCatalogo.addEventListener('click', () => {
+    menuAjustes.classList.remove('open');
+    overlayCatalogo.classList.add('open');
+    setTimeout(() => catTitulo.focus(), 50);
+  });
+  cerrarCatalogo.addEventListener('click', cerrarDialogoCatalogo);
+  overlayCatalogo.addEventListener('click', (e) => { if (e.target === overlayCatalogo) cerrarDialogoCatalogo(); });
+
+  // --- Menú de ajustes (engranaje) ---
+  const btnAjustes = document.getElementById('btnAjustes');
+  const menuAjustes = document.getElementById('menuAjustes');
+
+  btnAjustes.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menuAjustes.classList.toggle('open');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.menu-ajustes') && !e.target.closest('.btn-ajustes')) {
+      menuAjustes.classList.remove('open');
+    }
+  });
+
+  btnAgregarCatalogo.addEventListener('click', async () => {
+    const titulo = catTitulo.value.trim();
+    const artista = catArtista.value.trim();
+    const idioma = catIdioma.value;
+    const categoria = catCategoria.value;
+    const imagenUrl = catImagenUrl.value.trim();
+    if (!titulo) { catTitulo.focus(); return; }
+    if (!artista) { catArtista.focus(); return; }
+
+    const enlaceLetra = `https://genius.com/search?q=${encodeURIComponent(artista + ' ' + titulo)}`;
+
+    btnAgregarCatalogo.disabled = true;
+    btnAgregarCatalogo.textContent = 'Añadiendo…';
+    try {
+      const nuevaCancion = {
+        ID: Date.now(),
+        Titulo: titulo,
+        Artista: artista,
+        Idioma: idioma,
+        Categoria: categoria,
+        Imagen_URL: imagenUrl,
+        Enlace_Letra: enlaceLetra
+      };
+      if (MODO_LOCAL) {
+        const extra = JSON.parse(localStorage.getItem(LS_CATALOGO_EXTRA) || '[]');
+        extra.push(nuevaCancion);
+        localStorage.setItem(LS_CATALOGO_EXTRA, JSON.stringify(extra));
+        catalogoCompleto.push(nuevaCancion);
+      } else {
+        await fetch(CONFIG.API_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify({
+            action: 'nueva_cancion',
+            titulo, artista, idioma, categoria, imagenUrl,
+            enlaceLetra
+          })
+        });
+        catalogoCompleto.push(nuevaCancion);
+      }
+      catTitulo.value = '';
+      catArtista.value = '';
+      catImagenUrl.value = '';
+      catIdioma.value = 'ES';
+      catCategoria.value = 'General';
+      cerrarDialogoCatalogo();
+      alert(`"${titulo}" añadida al repertorio.`);
+    } catch (e) {
+      alert('No se pudo añadir la canción. Inténtalo de nuevo.');
+    } finally {
+      btnAgregarCatalogo.disabled = false;
+      btnAgregarCatalogo.textContent = 'Añadir al repertorio 🎶';
+    }
+  });
+
+  cargar();
+  cargarCatalogoCompleto();
+  setInterval(cargar, 6000);
+</script>
+</body>
+</html>
