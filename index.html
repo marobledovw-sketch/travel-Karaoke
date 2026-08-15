@@ -12,16 +12,29 @@
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;height:100%;}
+  html{background-color:var(--bg1);}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    color:var(--text);
+    min-height:100vh;
+    padding-bottom:40px;
+  }
+  /* El degradado va en un elemento aparte con position:fixed (en vez de
+     background-attachment:fixed en el body) porque en móvil ese "fixed"
+     no se respeta bien: el fondo acaba desplazándose con el contenido y,
+     en un listado largo, el segundo degradado (esquina inferior) termina
+     apareciendo al final del todo, junto al listado, en vez de fijo en la
+     esquina de la pantalla como pasa en PC. Con un div fixed real se
+     comporta igual en ambos. */
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    z-index:-1;
     background-color:var(--bg1);
     background-image:
       radial-gradient(circle at 12% -5%, rgba(0,173,255,.35) 0%, rgba(0,173,255,0) 48%),
       radial-gradient(circle at 105% 105%, rgba(232,130,60,.28) 0%, rgba(232,130,60,0) 55%);
-    background-attachment:fixed, fixed;
-    color:var(--text);
-    min-height:100vh;
-    padding-bottom:40px;
   }
   header{
     padding:18px 16px 6px;
