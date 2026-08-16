@@ -691,7 +691,7 @@
     let mostrar;
     if (filtro === 'pendientes') mostrar = pendientes;
     else if (filtro === 'cantadas') mostrar = cantadas;
-    else mostrar = solicitudes;
+    else mostrar = solicitudes.slice().sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
 
     if (mostrar.length === 0) {
       const vacioTexto = filtro === 'pendientes' ? ' pendientes' : filtro === 'cantadas' ? ' cantadas' : '';
