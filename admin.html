@@ -66,12 +66,16 @@
     -webkit-background-clip:text; background-clip:text; color:transparent;
   }
   header p{margin:4px 0 0; color:var(--muted); font-size:.8rem;}
-  .stats{display:flex; gap:8px; justify-content:center; margin-top:12px;}
-  .stat{
-    background:var(--card); border:1px solid var(--card-border);
-    border-radius:12px; padding:8px 16px; font-size:.85rem; color:var(--muted);
+
+  .tabs-principal{display:flex; gap:8px; max-width:700px; margin:16px auto 0; padding:0 16px;}
+  .tabs-principal button{
+    flex:1; padding:11px 6px; border-radius:12px; border:1px solid var(--card-border);
+    background:var(--bg2); color:var(--muted); font-weight:700; font-size:.8rem; cursor:pointer;
+    text-transform:uppercase; letter-spacing:.03em;
+    display:flex; align-items:center; justify-content:center; gap:6px;
   }
-  .stat b{color:var(--text); font-size:1.1rem; display:block;}
+  .tabs-principal button svg{width:16px; height:16px; flex-shrink:0;}
+  .tabs-principal button.active{background:var(--accent); color:#0a1620; border-color:transparent;}
 
   .tabs{display:flex; gap:8px; max-width:700px; margin:14px auto 0; padding:0 16px;}
   .tabs button{
@@ -79,6 +83,45 @@
     background:var(--card); color:var(--muted); font-weight:600; font-size:.82rem; cursor:pointer;
   }
   .tabs button.active{background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#141414; border-color:transparent;}
+
+  .catalogo-acciones{display:flex; gap:8px; max-width:700px; margin:14px auto 0; padding:0 16px;}
+  .catalogo-acciones .manual-add-toggle{flex:1;}
+
+  .search-box-admin{position:relative; max-width:700px; margin:10px auto 0; padding:0 16px;}
+  .search-box-admin input{
+    width:100%; padding:13px 14px 13px 42px; border-radius:14px;
+    border:1px solid var(--card-border); background:var(--card); color:var(--text);
+    font-size:1rem; outline:none; box-sizing:border-box;
+  }
+  .search-box-admin input:focus{border-color:var(--accent2);}
+  .search-box-admin::before{
+    content:"🔎"; position:absolute; left:30px; top:50%;
+    transform:translateY(-50%); font-size:1rem; opacity:.7;
+  }
+
+  .cover-wrap{position:relative; flex-shrink:0;}
+  .btn-refrescar-cover{
+    position:absolute; bottom:-4px; right:-4px;
+    width:22px; height:22px; border-radius:50%;
+    background:var(--bg1); border:1px solid var(--card-border);
+    color:var(--text); font-size:.7rem; line-height:1; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .btn-editar-cancion{
+    border:1px solid var(--card-border) !important; background:transparent; color:var(--accent2);
+  }
+
+  .edit-cover-wrap{position:relative; width:96px; height:96px; margin:2px auto 4px;}
+  .edit-cover{width:96px; height:96px; border-radius:14px;}
+  .btn-recargar-cover{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:40px; height:40px; border-radius:50%;
+    background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.25);
+    color:#fff; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .btn-recargar-cover svg{width:20px; height:20px;}
+  .btn-recargar-cover:disabled{opacity:.5;}
 
   .list{max-width:700px; margin:0 auto; padding:14px 16px 0; display:flex; flex-direction:column; gap:10px;}
 
@@ -124,6 +167,12 @@
     z-index:50; backdrop-filter:blur(2px);
   }
   .dialog-overlay.open{display:flex;}
+  /* El diálogo de editar arranca solo con el buscador (muy bajito de
+     contenido hasta que se elige una canción), así que como hoja pegada
+     abajo quedaba flotando muy abajo de la pantalla, con mucho hueco
+     vacío encima. Este en concreto se centra en vez de anclarse abajo. */
+  #overlayEditarCatalogo{ align-items:center; }
+  #overlayEditarCatalogo .dialog-card{ border-radius:20px; }
   .dialog-card{
     position:relative;
     background:var(--bg1); border:1px solid var(--card-border);
@@ -183,6 +232,9 @@
     padding:9px; font-size:.8rem; color:var(--muted);
   }
   .excel-estado{color:var(--muted); font-size:.8rem; margin:0;}
+  .evento-resumen{color:var(--muted); font-size:.85rem; margin-top:8px;}
+  .evento-resumen b{color:var(--text);}
+  .fav-contador{color:var(--accent2); font-weight:700; font-size:1rem; white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -190,27 +242,49 @@
 <header>
   <button type="button" class="btn-ajustes" id="btnAjustes" aria-label="Ajustes">⚙️</button>
   <div class="menu-ajustes" id="menuAjustes">
-    <button type="button" id="toggleCatalogo">🎶 Añadir canción al repertorio</button>
-    <button type="button" id="toggleExcel">📊 Importar canciones (Excel)</button>
     <button type="button" id="toggleEvento">📍 Lugar y fecha del evento</button>
   </div>
   <img class="logo" src="logo.png" alt="Travel Karaoke">
   <h1>🎧 Panel del Admin</h1>
-  <p>Solicitudes de karaoke en directo</p>
-  <div class="stats">
-    <div class="stat"><b id="statPend">0</b>Pendientes</div>
-    <div class="stat"><b id="statCant">0</b>Cantadas</div>
-  </div>
+  <p class="evento-resumen" id="eventoResumen" style="display:none"></p>
 </header>
 
-<div class="tabs">
-  <button data-f="pendientes" class="active">Pendientes</button>
-  <button data-f="todas">Todas</button>
+<div class="tabs-principal">
+  <button data-tab="peticiones" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>
+    Peticiones
+  </button>
+  <button data-tab="catalogo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+    Catálogo
+  </button>
+  <button data-tab="favoritos">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.5 8.4 2.6 5 6 5c2 0 3.4 1 4.5 2.3C11.6 6 13 5 15 5c3.4 0 5.5 3.4 4 6.7C19.5 16.4 12 21 12 21z"/></svg>
+    Favoritos
+  </button>
 </div>
 
-<div class="manual-add">
-  <button type="button" class="manual-add-toggle" id="toggleManual">➕ Añadir petición manual</button>
+<div class="seccion-tab" data-seccion="peticiones">
+  <div class="tabs">
+    <button data-f="pendientes" class="active">Pendientes</button>
+    <button data-f="todas">Todas</button>
+  </div>
+  <div class="manual-add">
+    <button type="button" class="manual-add-toggle" id="toggleManual">➕ Añadir petición manual</button>
+  </div>
 </div>
+
+<div class="seccion-tab" data-seccion="catalogo" style="display:none">
+  <div class="catalogo-acciones">
+    <button type="button" class="manual-add-toggle" id="toggleCatalogo">🎶 Añadir canción</button>
+    <button type="button" class="manual-add-toggle" id="toggleExcel">📊 Importar Excel</button>
+  </div>
+  <div class="search-box-admin">
+    <input type="text" id="catalogoBuscador" placeholder="Busca por título o artista..." autocomplete="off">
+  </div>
+</div>
+
+<div class="seccion-tab" data-seccion="favoritos" style="display:none"></div>
 
 <div class="dialog-overlay" id="overlayManual">
   <div class="dialog-card">
@@ -272,6 +346,33 @@
   </div>
 </div>
 
+<div class="dialog-overlay" id="overlayEditarCatalogo">
+  <div class="dialog-card">
+    <button type="button" class="dialog-close" id="cerrarEditarCatalogo" aria-label="Cerrar">✕</button>
+    <p class="dialog-title">Editar canción del repertorio</p>
+    <input type="text" id="editTitulo" placeholder="Título de la canción" maxlength="80" autocomplete="off">
+    <input type="text" id="editArtista" placeholder="Cantante / grupo" maxlength="60" autocomplete="off">
+    <span class="campo-label">Idioma</span>
+    <select id="editIdioma">
+      <option value="ES">Español</option>
+      <option value="EXT">Extranjero</option>
+    </select>
+    <span class="campo-label">Categoría</span>
+    <select id="editCategoria">
+      <option value="General">General</option>
+      <option value="Infantil">Infantil</option>
+    </select>
+    <span class="campo-label">Carátula</span>
+    <div class="edit-cover-wrap">
+      <div class="cover edit-cover" id="editCoverPreview"></div>
+      <button type="button" class="btn-recargar-cover" id="btnRecargarCoverEdit" title="Buscar carátula en iTunes" aria-label="Recargar carátula">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>
+      </button>
+    </div>
+    <button type="button" id="btnGuardarEdicion">Guardar cambios ✏️</button>
+  </div>
+</div>
+
 <div class="list" id="list"><div class="empty">Cargando…</div></div>
 <p class="refresh-note">Se actualiza automáticamente cada 6 segundos</p>
 
@@ -283,16 +384,18 @@
   // las peticiones guardadas en este mismo navegador por index.html (útil
   // para probar la app en un solo ordenador antes de desplegar el backend).
   const CONFIG = {
-    API_URL: 'https://script.google.com/macros/s/AKfycbygMRctmRpJtSWBKeIMJPq4n5_b7-hrGfqEuPUJU02qYqaSykTNeX3eb8fdCQuw1HpG/exec'
+    API_URL: 'https://script.google.com/macros/s/AKfycbz1Msw-_1kml-0Jn9V5ejg9GjiAv7cgAHnz47hvYHLlFEu76Pz8WzAqi_7UMaIqpxic/exec'
   };
   const MODO_LOCAL = !CONFIG.API_URL || CONFIG.API_URL.includes('PEGA_AQUI');
   const LS_KEY = 'karaoke_solicitudes_local';
   const LS_CATALOGO_EXTRA = 'karaoke_catalogo_extra';
 
   let solicitudes = [];
+  let favoritos = [];
   let catalogoCompleto = [];
   let imagenSeleccionadaManual = '';
   let filtro = 'pendientes';
+  let tabPrincipal = 'peticiones';
   const cacheCaratulas = {};
   const listEl = document.getElementById('list');
 
@@ -307,8 +410,17 @@
       return;
     }
     try {
-      const res = await fetch(`${CONFIG.API_URL}?action=solicitudes&_=${Date.now()}`);
-      solicitudes = await res.json();
+      const [resSol, resFav] = await Promise.all([
+        fetch(`${CONFIG.API_URL}?action=solicitudes&_=${Date.now()}`),
+        fetch(`${CONFIG.API_URL}?action=favoritos&_=${Date.now()}`)
+      ]);
+      solicitudes = await resSol.json();
+      const datosFav = await resFav.json();
+      // Si el Apps Script en directo todavía no tiene la acción "favoritos"
+      // desplegada (falta la "Nueva versión"), devuelve un objeto de error
+      // en vez de una lista: se trata como "sin favoritos todavía" en vez
+      // de romper el render.
+      favoritos = Array.isArray(datosFav) ? datosFav : [];
       render();
     } catch (e) {
       listEl.innerHTML = '<div class="empty">No se pudo conectar. Revisa la URL de configuración.</div>';
@@ -335,9 +447,13 @@
 
   function render() {
     const pendientes = solicitudes.filter(s => s.Estado !== 'Cantada');
-    document.getElementById('statPend').textContent = pendientes.length;
-    document.getElementById('statCant').textContent = solicitudes.length - pendientes.length;
 
+    if (tabPrincipal === 'favoritos') { renderFavoritos(); return; }
+    if (tabPrincipal === 'catalogo') { renderCatalogo(); return; }
+    renderPeticiones(pendientes);
+  }
+
+  function renderPeticiones(pendientes) {
     const mostrar = filtro === 'pendientes' ? pendientes : solicitudes;
 
     if (mostrar.length === 0) {
@@ -366,6 +482,76 @@
     });
 
     listEl.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
+  }
+
+  // Canciones que los usuarios marcaron con el corazón en el index,
+  // ordenadas por cuánta gente la marcó (viene ya ordenado del backend).
+  function renderFavoritos() {
+    if (favoritos.length === 0) {
+      listEl.innerHTML = '<div class="empty">Todavía nadie ha marcado ninguna canción como favorita ❤️</div>';
+      return;
+    }
+
+    listEl.innerHTML = favoritos.map((f, i) => `
+      <div class="card">
+        <div class="cover" id="cover-${i}" data-artista="${escapeAttr(f.Artista)}" data-titulo="${escapeAttr(f.Titulo)}" data-imagen=""></div>
+        <div class="info">
+          <div class="title">${escapeHtml(f.Titulo)}</div>
+          <div class="artist">${escapeHtml(f.Artista)}</div>
+        </div>
+        <div class="actions">
+          <span class="fav-contador">❤️ ${f.Contador}</span>
+        </div>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
+  }
+
+  // Buscador del catálogo completo (mismo criterio que el buscador del
+  // index): permite encontrar cualquier canción para editarla o refrescar
+  // su carátula, sin volcar de golpe las 1200+ canciones del repertorio.
+  function renderCatalogo() {
+    const q = normaliza(catalogoBuscador.value.trim());
+    if (!q) {
+      listEl.innerHTML = '<div class="empty">👆 Escribe el título o el artista de una canción del repertorio para buscarla</div>';
+      return;
+    }
+
+    const resultados = catalogoCompleto
+      .filter(c => normaliza(c.Titulo).includes(q) || normaliza(c.Artista).includes(q))
+      .slice(0, 40);
+
+    if (resultados.length === 0) {
+      listEl.innerHTML = '<div class="empty">No hay ninguna canción que coincida 🤷</div>';
+      return;
+    }
+
+    listEl.innerHTML = resultados.map((c, i) => `
+      <div class="card">
+        <div class="cover-wrap">
+          <div class="cover" id="cover-${i}" data-artista="${escapeAttr(c.Artista)}" data-titulo="${escapeAttr(c.Titulo)}" data-imagen="${escapeAttr(c.Imagen_URL || '')}"></div>
+          <button type="button" class="btn-refrescar-cover" data-idx="${i}" title="Actualizar carátula" aria-label="Actualizar carátula">🔄</button>
+        </div>
+        <div class="info">
+          <div class="title">${escapeHtml(c.Titulo)}</div>
+          <div class="artist">${escapeHtml(c.Artista)}</div>
+        </div>
+        <div class="actions">
+          <button class="btn-editar-cancion" data-idx="${i}">✏️ Editar</button>
+        </div>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
+
+    listEl.querySelectorAll('.btn-editar-cancion').forEach(btn => {
+      btn.addEventListener('click', () => abrirEdicionCancion(resultados[+btn.dataset.idx]));
+    });
+
+    listEl.querySelectorAll('.btn-refrescar-cover').forEach(btn => {
+      btn.addEventListener('click', () => refrescarCaratula(resultados[+btn.dataset.idx], btn));
+    });
   }
 
   function escapeHtml(str) {
@@ -489,6 +675,23 @@
       render();
     });
   });
+
+  // --- Pestañas principales: Peticiones / Catálogo / Favoritos ---
+  const catalogoBuscador = document.getElementById('catalogoBuscador');
+
+  document.querySelectorAll('.tabs-principal button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tabs-principal button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      tabPrincipal = btn.dataset.tab;
+      document.querySelectorAll('.seccion-tab').forEach(sec => {
+        sec.style.display = sec.dataset.seccion === tabPrincipal ? '' : 'none';
+      });
+      render();
+    });
+  });
+
+  catalogoBuscador.addEventListener('input', () => render());
 
   const toggleManual = document.getElementById('toggleManual');
   const overlayManual = document.getElementById('overlayManual');
@@ -711,6 +914,171 @@
     }
   });
 
+  // --- Editar canción ya existente del repertorio (desde el lápiz de
+  // cada resultado en la pestaña Catálogo) ---
+  const overlayEditarCatalogo = document.getElementById('overlayEditarCatalogo');
+  const cerrarEditarCatalogo = document.getElementById('cerrarEditarCatalogo');
+  const editTitulo = document.getElementById('editTitulo');
+  const editArtista = document.getElementById('editArtista');
+  const editIdioma = document.getElementById('editIdioma');
+  const editCategoria = document.getElementById('editCategoria');
+  const editCoverPreview = document.getElementById('editCoverPreview');
+  const btnRecargarCoverEdit = document.getElementById('btnRecargarCoverEdit');
+  const btnGuardarEdicion = document.getElementById('btnGuardarEdicion');
+  let cancionEnEdicion = null;
+  let imagenEdicionActual = '';
+
+  function cerrarDialogoEditarCatalogo() {
+    overlayEditarCatalogo.classList.remove('open');
+    cancionEnEdicion = null;
+  }
+
+  function actualizarPreviewCoverEdicion() {
+    editCoverPreview.style.backgroundImage = imagenEdicionActual ? `url('${imagenEdicionActual}')` : '';
+  }
+
+  function abrirEdicionCancion(c) {
+    cancionEnEdicion = c;
+    editTitulo.value = c.Titulo || '';
+    editArtista.value = c.Artista || '';
+    editIdioma.value = c.Idioma === 'EXT' ? 'EXT' : 'ES';
+    editCategoria.value = c.Categoria === 'Infantil' ? 'Infantil' : 'General';
+    imagenEdicionActual = c.Imagen_URL || '';
+    actualizarPreviewCoverEdicion();
+    overlayEditarCatalogo.classList.add('open');
+  }
+
+  cerrarEditarCatalogo.addEventListener('click', cerrarDialogoEditarCatalogo);
+  overlayEditarCatalogo.addEventListener('click', (e) => { if (e.target === overlayEditarCatalogo) cerrarDialogoEditarCatalogo(); });
+
+  // Busca de nuevo la carátula en iTunes con el título/artista que haya
+  // ahora mismo en el formulario (por si se acaban de corregir) y solo
+  // actualiza la vista previa; se guarda de verdad al pulsar "Guardar
+  // cambios", junto con el resto de campos.
+  btnRecargarCoverEdit.addEventListener('click', async () => {
+    const titulo = editTitulo.value.trim();
+    const artista = editArtista.value.trim();
+    if (!titulo && !artista) return;
+    btnRecargarCoverEdit.disabled = true;
+    try {
+      const data = await buscarEnItunesConCola(`${artista} ${titulo}`);
+      if (!data) {
+        alert('No se ha podido conectar con iTunes (puede estar bloqueando peticiones desde esta red ahora mismo). Prueba de nuevo en un momento, o desde datos móviles.');
+        return;
+      }
+      if (!data.results || !data.results[0] || !data.results[0].artworkUrl100) {
+        alert('iTunes no tiene ninguna carátula para esta canción.');
+        return;
+      }
+      imagenEdicionActual = data.results[0].artworkUrl100.replace('100x100', '300x300');
+      actualizarPreviewCoverEdicion();
+    } catch (e) {
+      alert('No se pudo buscar la carátula. Inténtalo de nuevo.');
+    } finally {
+      btnRecargarCoverEdit.disabled = false;
+    }
+  });
+
+  // Vuelve a buscar la carátula en iTunes y la guarda ya resuelta en el
+  // catálogo, por si la que se asignó automáticamente al añadir la canción
+  // no era la correcta.
+  async function refrescarCaratula(c, btn) {
+    btn.disabled = true;
+    btn.textContent = '…';
+    try {
+      const data = await buscarEnItunesConCola(`${c.Artista} ${c.Titulo}`);
+      if (!data) {
+        alert('No se ha podido conectar con iTunes (puede estar bloqueando peticiones desde esta red ahora mismo). Prueba de nuevo en un momento, o desde datos móviles.');
+        return;
+      }
+      if (!data.results || !data.results[0] || !data.results[0].artworkUrl100) {
+        alert('iTunes no tiene ninguna carátula para esta canción.');
+        return;
+      }
+      const nuevaUrl = data.results[0].artworkUrl100.replace('100x100', '300x300');
+      const enlaceLetra = c.Enlace_Letra || `https://genius.com/search?q=${encodeURIComponent(c.Artista + ' ' + c.Titulo)}`;
+      if (MODO_LOCAL) {
+        const extra = JSON.parse(localStorage.getItem(LS_CATALOGO_EXTRA) || '[]');
+        const idx = extra.findIndex(e => e.ID === c.ID);
+        if (idx !== -1) {
+          extra[idx].Imagen_URL = nuevaUrl;
+          localStorage.setItem(LS_CATALOGO_EXTRA, JSON.stringify(extra));
+        }
+      } else {
+        await fetch(CONFIG.API_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify({
+            action: 'editar_cancion',
+            fila: c._row,
+            titulo: c.Titulo, artista: c.Artista, idioma: c.Idioma, categoria: c.Categoria,
+            imagenUrl: nuevaUrl, enlaceLetra
+          })
+        });
+      }
+      c.Imagen_URL = nuevaUrl;
+      cacheCaratulas[normaliza(`${c.Artista}|${c.Titulo}`)] = nuevaUrl;
+      const cover = btn.closest('.cover-wrap').querySelector('.cover');
+      cover.style.backgroundImage = `url('${nuevaUrl}')`;
+    } catch (e) {
+      alert('No se pudo actualizar la carátula. Inténtalo de nuevo.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🔄';
+    }
+  }
+
+  btnGuardarEdicion.addEventListener('click', async () => {
+    if (!cancionEnEdicion) return;
+    const titulo = editTitulo.value.trim();
+    const artista = editArtista.value.trim();
+    const idioma = editIdioma.value;
+    const categoria = editCategoria.value;
+    const imagenUrl = imagenEdicionActual;
+    if (!titulo) { editTitulo.focus(); return; }
+    if (!artista) { editArtista.focus(); return; }
+
+    btnGuardarEdicion.disabled = true;
+    btnGuardarEdicion.textContent = 'Guardando…';
+    try {
+      const enlaceLetra = cancionEnEdicion.Enlace_Letra || `https://genius.com/search?q=${encodeURIComponent(artista + ' ' + titulo)}`;
+      if (MODO_LOCAL) {
+        // Solo se pueden editar canciones añadidas antes desde este mismo
+        // admin (las del catálogo base vienen de catalogo_data.js y no se
+        // pueden reescribir en modo local); en el backend real sí se puede
+        // editar cualquiera, porque todas viven en la hoja de cálculo.
+        const extra = JSON.parse(localStorage.getItem(LS_CATALOGO_EXTRA) || '[]');
+        const idx = extra.findIndex(c => c.ID === cancionEnEdicion.ID);
+        if (idx === -1) {
+          alert('En modo local solo se pueden editar canciones añadidas desde este panel.');
+          return;
+        }
+        extra[idx] = { ...extra[idx], Titulo: titulo, Artista: artista, Idioma: idioma, Categoria: categoria, Imagen_URL: imagenUrl, Enlace_Letra: enlaceLetra };
+        localStorage.setItem(LS_CATALOGO_EXTRA, JSON.stringify(extra));
+      } else {
+        await fetch(CONFIG.API_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify({
+            action: 'editar_cancion',
+            fila: cancionEnEdicion._row,
+            titulo, artista, idioma, categoria,
+            imagenUrl, enlaceLetra
+          })
+        });
+      }
+      Object.assign(cancionEnEdicion, { Titulo: titulo, Artista: artista, Idioma: idioma, Categoria: categoria, Imagen_URL: imagenUrl, Enlace_Letra: enlaceLetra });
+      cerrarDialogoEditarCatalogo();
+      render();
+      alert(`"${titulo}" actualizada en el repertorio.`);
+    } catch (e) {
+      alert('No se pudo guardar el cambio. Inténtalo de nuevo.');
+    } finally {
+      btnGuardarEdicion.disabled = false;
+      btnGuardarEdicion.textContent = 'Guardar cambios ✏️';
+    }
+  });
+
   // --- Importar canciones desde Excel/CSV ---
   const toggleExcel = document.getElementById('toggleExcel');
   const overlayExcel = document.getElementById('overlayExcel');
@@ -851,9 +1219,24 @@
     overlayEvento.classList.remove('open');
   }
 
-  async function abrirDialogoEvento() {
-    menuAjustes.classList.remove('open');
-    overlayEvento.classList.add('open');
+  // Admite tanto 'YYYY-MM-DD' como el formato con hora que a veces devuelve
+  // Google Sheets si la celda se guardó como fecha en vez de texto.
+  function parseFechaEvento(str) {
+    if (!str) return null;
+    const soloFecha = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str);
+    if (soloFecha) return { anio: +soloFecha[1], mes: +soloFecha[2], dia: +soloFecha[3] };
+    const d = new Date(str);
+    if (isNaN(d)) return null;
+    return { anio: d.getFullYear(), mes: d.getMonth() + 1, dia: d.getDate() };
+  }
+
+  function fechaAInputValue(str) {
+    const p = parseFechaEvento(str);
+    if (!p) return '';
+    return `${p.anio}-${String(p.mes).padStart(2, '0')}-${String(p.dia).padStart(2, '0')}`;
+  }
+
+  async function leerConfigEvento() {
     let cfg = { Lugar: '', Fecha: '' };
     if (MODO_LOCAL) {
       cfg = JSON.parse(localStorage.getItem(LS_CONFIG) || 'null') || cfg;
@@ -863,8 +1246,30 @@
         cfg = await res.json();
       } catch (e) { /* si falla, se dejan los campos vacíos */ }
     }
+    return cfg;
+  }
+
+  async function abrirDialogoEvento() {
+    menuAjustes.classList.remove('open');
+    overlayEvento.classList.add('open');
+    const cfg = await leerConfigEvento();
     eventoLugarInput.value = cfg.Lugar || '';
-    eventoFechaInput.value = cfg.Fecha || '';
+    eventoFechaInput.value = fechaAInputValue(cfg.Fecha);
+  }
+
+  const MESES_LARGOS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const eventoResumen = document.getElementById('eventoResumen');
+
+  async function cargarResumenEvento() {
+    const cfg = await leerConfigEvento();
+    const partes = parseFechaEvento(cfg.Fecha);
+    const trozos = [];
+    if (cfg.Lugar) trozos.push(`📍 <b>${escapeHtml(cfg.Lugar)}</b>`);
+    if (partes) trozos.push(`📅 <b>${partes.dia} de ${MESES_LARGOS[partes.mes - 1]} de ${partes.anio}</b>`);
+    if (trozos.length) {
+      eventoResumen.innerHTML = trozos.join(' &nbsp;·&nbsp; ');
+      eventoResumen.style.display = '';
+    }
   }
 
   toggleEvento.addEventListener('click', abrirDialogoEvento);
@@ -887,6 +1292,7 @@
         });
       }
       cerrarDialogoEvento();
+      cargarResumenEvento();
     } catch (e) {
       alert('No se pudo guardar. Inténtalo de nuevo.');
     } finally {
@@ -897,6 +1303,7 @@
 
   cargar();
   cargarCatalogoCompleto();
+  cargarResumenEvento();
   setInterval(cargar, 6000);
 </script>
 </body>

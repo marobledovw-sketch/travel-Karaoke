@@ -84,7 +84,7 @@
      logo (altura fija, no estirada a toda la fila) pero centrada con las
      otras dos zonas. */
   .evento-fecha{
-    grid-column:3; justify-self:end; align-self:center;
+    grid-column:3; justify-self:center; align-self:center;
     height:115px; aspect-ratio:1/1; max-width:100%;
     border-radius:12px; overflow:hidden;
     border:1px solid var(--card-border);
@@ -228,6 +228,13 @@
     transition:transform .2s;
   }
   .song-card.active .chevron{transform:rotate(180deg); color:var(--accent2);}
+  .btn-fav{
+    background:none; border:none; padding:4px; flex-shrink:0;
+    color:var(--card-border); font-size:1.15rem; line-height:1;
+    cursor:pointer; transition:transform .15s, color .15s;
+  }
+  .btn-fav:active{transform:scale(1.2);}
+  .btn-fav.activo{color:var(--accent2);}
 
   .empty{text-align:center; color:var(--muted); padding:40px 20px; font-size:.9rem;}
 
@@ -381,12 +388,13 @@
   // en MODO LOCAL: usa el catálogo embebido (catalogo_data.js) y guarda las
   // peticiones en este mismo navegador (localStorage), sin necesitar internet.
   const CONFIG = {
-    API_URL: 'https://script.google.com/macros/s/AKfycbygMRctmRpJtSWBKeIMJPq4n5_b7-hrGfqEuPUJU02qYqaSykTNeX3eb8fdCQuw1HpG/exec'
+    API_URL: 'https://script.google.com/macros/s/AKfycbz1Msw-_1kml-0Jn9V5ejg9GjiAv7cgAHnz47hvYHLlFEu76Pz8WzAqi_7UMaIqpxic/exec'
   };
   const MODO_LOCAL = !CONFIG.API_URL || CONFIG.API_URL.includes('PEGA_AQUI');
   const LS_KEY = 'karaoke_solicitudes_local';
   const LS_CATALOGO_EXTRA = 'karaoke_catalogo_extra';
   const LS_CONFIG = 'karaoke_config_local';
+  const LS_FAVORITOS = 'karaoke_favoritos_local';
 
   let catalogo = [];
   let filtroCategoria = 'TODAS';
@@ -516,6 +524,7 @@
                 <div class="song-title">${escapeHtml(principal)}</div>
                 ${secundario ? `<div class="song-artist">${escapeHtml(secundario)}</div>` : ''}
               </div>
+              <button type="button" class="btn-fav${esFavorito(c) ? ' activo' : ''}" data-idx="${i}" aria-label="Marcar como favorita">♥</button>
               <div class="chevron">▾</div>
             </div>
             <div class="song-details" id="details-${i}">
@@ -533,6 +542,13 @@
 
     listEl.querySelectorAll('.song-toprow, .cover').forEach(el => {
       el.addEventListener('click', () => toggleDetalle(+el.dataset.idx));
+    });
+
+    listEl.querySelectorAll('.btn-fav').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFavorito(+btn.dataset.idx);
+      });
     });
 
     listEl.querySelectorAll('.btn-send-inline').forEach(btn => {
@@ -655,6 +671,41 @@
       script.onerror = () => { resolve(null); limpiar(); };
       script.src = `https://itunes.apple.com/search?term=${encodeURIComponent(termino)}&media=music&limit=1&callback=${cbName}`;
       document.body.appendChild(script);
+    });
+  }
+
+  // Favoritos: no hay login de usuario, así que es un contador global por
+  // canción (cuánta gente la marcó), guardado en el propio dispositivo
+  // qué corazones tiene pulsados este usuario en concreto.
+  function claveFavorito(c) {
+    return normaliza(`${c.Titulo}|${c.Artista}`);
+  }
+
+  function favoritosLocales() {
+    return new Set(JSON.parse(localStorage.getItem(LS_FAVORITOS) || '[]'));
+  }
+
+  function esFavorito(c) {
+    return favoritosLocales().has(claveFavorito(c));
+  }
+
+  function toggleFavorito(i) {
+    const c = resultadosActuales[i];
+    if (!c) return;
+    const clave = claveFavorito(c);
+    const favs = favoritosLocales();
+    const nuevoEstado = !favs.has(clave);
+    if (nuevoEstado) favs.add(clave); else favs.delete(clave);
+    localStorage.setItem(LS_FAVORITOS, JSON.stringify([...favs]));
+
+    const btn = listEl.querySelector(`.btn-fav[data-idx="${i}"]`);
+    if (btn) btn.classList.toggle('activo', nuevoEstado);
+
+    if (MODO_LOCAL) return;
+    fetch(CONFIG.API_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify({ action: 'marcar_favorito', titulo: c.Titulo, artista: c.Artista, favorito: nuevoEstado })
     });
   }
 
