@@ -275,6 +275,11 @@
     background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#141414;
   }
   .dialog-card > button:disabled{opacity:.5;}
+  .btn-eliminar-cancion{
+    background:transparent !important; color:#ff6b6b !important;
+    border:1px solid #ff6b6b !important;
+  }
+  .btn-eliminar-cancion:hover{background:#ff6b6b !important; color:#2a0a0a !important;}
 
   .campo-buscador{position:relative;}
   .sugerencias{
@@ -474,6 +479,7 @@
       </button>
     </div>
     <button type="button" id="btnGuardarEdicion">Guardar cambios ✏️</button>
+    <button type="button" class="btn-eliminar-cancion" id="btnEliminarCancion">🗑 Eliminar del repertorio</button>
   </div>
 </div>
 
@@ -488,7 +494,7 @@
   // las peticiones guardadas en este mismo navegador por index.html (útil
   // para probar la app en un solo ordenador antes de desplegar el backend).
   const CONFIG = {
-    API_URL: 'https://script.google.com/macros/s/AKfycbxPW36IUi7uul8HwozLIKdrAZ209fgVYAF-XB95oc6Bu5ipeRXm0dIfOXMdpjIx2JiU/exec'
+    API_URL: 'https://script.google.com/macros/s/AKfycbxSSzULVkZGpydfXVGRXsdVWEn_ZGUiL-aHYGlYeFVuTNvjRNBUJQJD7CPaoCA2Di4I/exec'
   };
   const MODO_LOCAL = !CONFIG.API_URL || CONFIG.API_URL.includes('PEGA_AQUI');
   const LS_KEY = 'karaoke_solicitudes_local';
@@ -1567,6 +1573,40 @@
     } finally {
       btnGuardarEdicion.disabled = false;
       btnGuardarEdicion.textContent = 'Guardar cambios ✏️';
+    }
+  });
+
+  const btnEliminarCancion = document.getElementById('btnEliminarCancion');
+  btnEliminarCancion.addEventListener('click', async () => {
+    if (!cancionEnEdicion) return;
+    const confirmado = confirm(`¿Eliminar "${cancionEnEdicion.Titulo}" del repertorio? Esta acción no se puede deshacer.`);
+    if (!confirmado) return;
+
+    btnEliminarCancion.disabled = true;
+    btnEliminarCancion.textContent = 'Eliminando…';
+    try {
+      if (MODO_LOCAL) {
+        const extra = JSON.parse(localStorage.getItem(LS_CATALOGO_EXTRA) || '[]');
+        const idx = extra.findIndex(c => c.ID === cancionEnEdicion.ID);
+        if (idx === -1) {
+          alert('En modo local solo se pueden eliminar canciones añadidas desde este panel.');
+          return;
+        }
+        extra.splice(idx, 1);
+        localStorage.setItem(LS_CATALOGO_EXTRA, JSON.stringify(extra));
+      } else {
+        await llamarAdminAPI('eliminar_cancion', { fila: cancionEnEdicion._row });
+      }
+      catalogoCompleto = catalogoCompleto.filter(c => c !== cancionEnEdicion);
+      cerrarDialogoEditarCatalogo();
+      render();
+    } catch (e) {
+      if (e.message !== 'cancelado' && e.message !== 'clave_incorrecta') {
+        alert('No se pudo eliminar. Inténtalo de nuevo.');
+      }
+    } finally {
+      btnEliminarCancion.disabled = false;
+      btnEliminarCancion.textContent = '🗑 Eliminar del repertorio';
     }
   });
 
