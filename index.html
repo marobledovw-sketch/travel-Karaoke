@@ -364,28 +364,32 @@
   .gate-error{color:#ff8080; font-size:.85rem; margin:0;}
 
   .sugerir-toggle{
-    display:block; width:100%; margin-top:8px; padding:11px;
-    border-radius:12px; border:1px dashed var(--card-border);
-    background:transparent; color:var(--accent2); font-weight:600;
-    font-size:.82rem; cursor:pointer;
+    display:block; width:100%; margin-top:10px; padding:15px;
+    border-radius:14px; border:none;
+    background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#141414;
+    font-weight:700; font-size:1rem; cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,.3);
   }
 
   /* Diálogo de sugerir canción: mismo lenguaje visual que el bloqueo de
      sesión (overlay a pantalla completa, tarjeta centrada), pero este sí
-     se puede cerrar. */
+     se puede cerrar. Centrado en vez de anclado abajo, para que no quede
+     pegado al borde inferior en pantallas altas. */
   .dialog-overlay-idx{
     position:fixed; inset:0; background:rgba(0,0,0,.65);
-    z-index:900; display:none; align-items:flex-end; justify-content:center;
-    backdrop-filter:blur(2px);
+    z-index:900; display:none; align-items:center; justify-content:center;
+    backdrop-filter:blur(2px); padding:20px; box-sizing:border-box;
   }
   .dialog-overlay-idx.open{display:flex;}
   .dialog-card-idx{
     position:relative; width:100%; max-width:640px;
     background:var(--bg1); border:1px solid var(--card-border);
-    border-top-left-radius:20px; border-top-right-radius:20px;
+    border-radius:20px; max-height:85vh; overflow-y:auto;
     box-sizing:border-box; padding:20px;
     display:flex; flex-direction:column; gap:10px;
+    animation:dialogUpIdx .2s ease-out;
   }
+  @keyframes dialogUpIdx{from{transform:translateY(20px); opacity:0;} to{transform:translateY(0); opacity:1;}}
   .dialog-title-idx{font-weight:700; font-size:1.05rem; margin:0 40px 0 0;}
   .dialog-nota-idx{color:var(--muted); font-size:.8rem; line-height:1.4; margin:0;}
   .dialog-close-idx{
@@ -497,7 +501,7 @@
   // en MODO LOCAL: usa el catálogo embebido (catalogo_data.js) y guarda las
   // peticiones en este mismo navegador (localStorage), sin necesitar internet.
   const CONFIG = {
-    API_URL: 'https://script.google.com/macros/s/AKfycbxSSzULVkZGpydfXVGRXsdVWEn_ZGUiL-aHYGlYeFVuTNvjRNBUJQJD7CPaoCA2Di4I/exec'
+    API_URL: 'https://script.google.com/macros/s/AKfycbyxoir_PuwqFYw6s8esZPS0J035tsWI1c73_q8JTtErj3_aTasM62uJtE7m8gr5w-sd/exec'
   };
   const MODO_LOCAL = !CONFIG.API_URL || CONFIG.API_URL.includes('PEGA_AQUI');
   const LS_KEY = 'karaoke_solicitudes_local';
@@ -1152,7 +1156,7 @@
         lista.push({
           IdSugerencia: Date.now() + '-' + Math.floor(Math.random() * 10000),
           Timestamp: new Date().toISOString(),
-          Titulo: titulo, Artista: artista, Solicitante: solicitante, Estado: 'Pendiente'
+          Titulo: titulo, Artista: artista, Solicitante: solicitante, Estado: 'Nueva'
         });
         localStorage.setItem(LS_SUGERENCIAS, JSON.stringify(lista));
       } else {

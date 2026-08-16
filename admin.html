@@ -77,6 +77,17 @@
   .tabs-principal button svg{width:16px; height:16px; flex-shrink:0;}
   .tabs-principal button.active{background:var(--accent); color:#0a1620; border-color:transparent;}
 
+  /* Late aviso: mientras haya sugerencias sin resolver, la pestaña late
+     con un borde rojo para llamar la atención del admin. Se detiene el
+     latido si el admin ya la tiene abierta (se queda solo el borde). */
+  @keyframes latidoSugerencias{
+    0%, 100% { box-shadow:0 0 0 0 rgba(255,107,107,.55); border-color:#ff6b6b; }
+    50% { box-shadow:0 0 0 6px rgba(255,107,107,0); border-color:#ff6b6b; }
+  }
+  .tabs-principal button.alerta{color:#ff6b6b;}
+  .tabs-principal button.alerta:not(.active){animation:latidoSugerencias 1.4s ease-in-out infinite;}
+  .tabs-principal button.alerta.active{border-color:#ff6b6b; color:#0a1620;}
+
   .tabs{display:flex; gap:8px; max-width:700px; margin:14px auto 0; padding:0 16px;}
   .tabs button{
     flex:1; padding:9px; border-radius:10px; border:1px solid var(--card-border);
@@ -194,6 +205,17 @@
   .btn-ok:hover{background:var(--ok); color:#063820;}
   .btn-del{background:transparent; color:var(--muted); border:1px solid var(--card-border) !important;}
 
+  /* Botones de sugerencias ("La tengo" / "Para Catalogar"): mismo aspecto
+     neutro para los dos, sin distinguirlos por color; el borde verde solo
+     aparece al pasar el ratón por encima, en el que se tenga debajo. */
+  .btn-tengo, .btn-pendiente{
+    background:transparent; color:var(--muted); border:1px solid var(--card-border) !important;
+    transition:border-color .15s, color .15s;
+  }
+  .btn-tengo:hover, .btn-pendiente:hover{
+    border-color:var(--ok) !important; color:var(--ok);
+  }
+
   /* Animación al marcar como cantada: la tarjeta "vuela" hacia arriba y se
      desvanece justo antes de moverse de verdad a la pestaña Cantadas. */
   .card.saliendo-cantada{
@@ -214,7 +236,7 @@
     0%, 100% { box-shadow:none; }
     50% { box-shadow:0 0 0 4px rgba(29,185,84,.6); }
   }
-  .tabs button.destello{ animation:destelloCantadas .9s ease; }
+  .tabs button.destello, .tabs-principal button.destello{ animation:destelloCantadas .9s ease; }
 
   .empty{text-align:center; color:var(--muted); padding:50px 20px;}
   .refresh-note{text-align:center; color:var(--muted); font-size:.72rem; margin-top:18px;}
@@ -327,6 +349,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>
     Peticiones
   </button>
+  <button data-tab="sugeridas">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>
+    Sugeridas
+  </button>
   <button data-tab="catalogo">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
     Catálogo
@@ -334,10 +360,6 @@
   <button data-tab="favoritos">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.5 8.4 2.6 5 6 5c2 0 3.4 1 4.5 2.3C11.6 6 13 5 15 5c3.4 0 5.5 3.4 4 6.7C19.5 16.4 12 21 12 21z"/></svg>
     Favoritos
-  </button>
-  <button data-tab="sugeridas">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>
-    Sugeridas
   </button>
 </div>
 
@@ -353,17 +375,24 @@
 </div>
 
 <div class="seccion-tab" data-seccion="catalogo" style="display:none">
-  <div class="catalogo-acciones">
-    <button type="button" class="manual-add-toggle" id="toggleCatalogo">🎶 Añadir canción</button>
-    <button type="button" class="manual-add-toggle" id="toggleExcel">📊 Importar Excel</button>
+  <div class="tabs" id="tabsCatalogoSub">
+    <button type="button" data-sub="repertorio" class="active">Repertorio</button>
+    <button type="button" data-sub="pendientes">📋 Para Catalogar <span class="tab-count" id="countPendientesCatalogo">0</span></button>
   </div>
-  <div class="orden-toggle-admin">
-    <button type="button" data-orden="ARTISTA">🎤 Cantante / Grupo (A-Z)</button>
-    <button type="button" data-orden="TITULO">🎶 Título canción (A-Z)</button>
+  <div id="catalogoRepertorioControles">
+    <div class="catalogo-acciones">
+      <button type="button" class="manual-add-toggle" id="toggleCatalogo">🎶 Añadir canción</button>
+      <button type="button" class="manual-add-toggle" id="toggleExcel">📊 Importar Excel</button>
+    </div>
+    <div class="orden-toggle-admin">
+      <button type="button" data-orden="ARTISTA">🎤 Cantante / Grupo (A-Z)</button>
+      <button type="button" data-orden="TITULO">🎶 Título canción (A-Z)</button>
+    </div>
+    <div class="search-box-admin">
+      <input type="text" id="catalogoBuscador" placeholder="Busca por título o artista..." autocomplete="off">
+    </div>
   </div>
-  <div class="search-box-admin">
-    <input type="text" id="catalogoBuscador" placeholder="Busca por título o artista..." autocomplete="off">
-  </div>
+  <p class="catalogo-add-nota" id="notaPendientesCatalogo" style="display:none; max-width:700px; margin:14px auto 0; padding:0 16px;">Sugerencias que guardaste como "Para Catalogar" para revisarlas con calma otro día. "La tengo" la añade al repertorio y crea ya la petición; "Descartar" la quita definitivamente de esta lista.</p>
 </div>
 
 <div class="seccion-tab" data-seccion="favoritos" style="display:none">
@@ -379,7 +408,7 @@
 </div>
 
 <div class="seccion-tab" data-seccion="sugeridas" style="display:none">
-  <p class="catalogo-add-nota" style="max-width:700px; margin:14px auto 0; padding:0 16px;">Canciones que los usuarios han pedido sugerir porque no las encontraron en el catálogo. "La tengo" la añade al repertorio y crea ya la petición a su nombre; "Pendiente" la deja aquí para revisarla más adelante.</p>
+  <p class="catalogo-add-nota" style="max-width:700px; margin:14px auto 0; padding:0 16px;">Canciones que los usuarios han pedido sugerir porque no las encontraron en el catálogo. "La tengo" la añade al repertorio y crea ya la petición a su nombre; "Para Catalogar" la guarda en la pestaña Catálogo para revisarla otro día con calma.</p>
 </div>
 
 <div class="dialog-overlay" id="overlayManual">
@@ -494,7 +523,7 @@
   // las peticiones guardadas en este mismo navegador por index.html (útil
   // para probar la app en un solo ordenador antes de desplegar el backend).
   const CONFIG = {
-    API_URL: 'https://script.google.com/macros/s/AKfycbxSSzULVkZGpydfXVGRXsdVWEn_ZGUiL-aHYGlYeFVuTNvjRNBUJQJD7CPaoCA2Di4I/exec'
+    API_URL: 'https://script.google.com/macros/s/AKfycbyxoir_PuwqFYw6s8esZPS0J035tsWI1c73_q8JTtErj3_aTasM62uJtE7m8gr5w-sd/exec'
   };
   const MODO_LOCAL = !CONFIG.API_URL || CONFIG.API_URL.includes('PEGA_AQUI');
   const LS_KEY = 'karaoke_solicitudes_local';
@@ -506,10 +535,12 @@
   let solicitudes = [];
   let favoritos = [];
   let sugerencias = [];
+  let sugerenciasPendientes = [];
   let catalogoCompleto = [];
   let imagenSeleccionadaManual = '';
   let filtro = 'pendientes';
   let tabPrincipal = 'peticiones';
+  let subTabCatalogo = 'repertorio'; // 'repertorio' | 'pendientes'
   let modoOrdenCatalogo = null; // null | 'ARTISTA' | 'TITULO'
   let letraSeleccionadaCatalogo = null; // null | 'A'..'Z' | '#'
   // '' = sesión activa (fecha actual del evento) | '__TODAS__' | una fecha concreta
@@ -555,25 +586,30 @@
   async function cargar() {
     if (MODO_LOCAL) {
       solicitudes = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
-      sugerencias = JSON.parse(localStorage.getItem(LS_SUGERENCIAS_LOCAL) || '[]');
+      const todasSugerencias = JSON.parse(localStorage.getItem(LS_SUGERENCIAS_LOCAL) || '[]');
+      sugerencias = todasSugerencias.filter(s => s.Estado !== 'Resuelta' && s.Estado !== 'Pendiente' && s.Estado !== 'Descartada');
+      sugerenciasPendientes = todasSugerencias.filter(s => s.Estado === 'Pendiente');
       render();
       return;
     }
     try {
-      const [resSol, resFav, resSug] = await Promise.all([
+      const [resSol, resFav, resSug, resSugPend] = await Promise.all([
         fetch(`${CONFIG.API_URL}?action=solicitudes&_=${Date.now()}`),
         fetch(`${CONFIG.API_URL}?action=favoritos&sesion=${encodeURIComponent(sesionFavoritosActual)}&_=${Date.now()}`),
-        fetch(`${CONFIG.API_URL}?action=sugerencias&_=${Date.now()}`)
+        fetch(`${CONFIG.API_URL}?action=sugerencias&_=${Date.now()}`),
+        fetch(`${CONFIG.API_URL}?action=sugerencias_pendientes&_=${Date.now()}`)
       ]);
       solicitudes = await resSol.json();
       const datosFav = await resFav.json();
       const datosSug = await resSug.json();
+      const datosSugPend = await resSugPend.json();
       // Si el Apps Script en directo todavía no tiene alguna acción nueva
       // desplegada (falta la "Nueva versión"), devuelve un objeto de error
       // en vez de una lista: se trata como "vacío todavía" en vez de romper
       // el render.
       favoritos = Array.isArray(datosFav) ? datosFav : [];
       sugerencias = Array.isArray(datosSug) ? datosSug : [];
+      sugerenciasPendientes = Array.isArray(datosSugPend) ? datosSugPend : [];
       render();
     } catch (e) {
       listEl.innerHTML = '<div class="empty">No se pudo conectar. Revisa la URL de configuración.</div>';
@@ -598,11 +634,25 @@
     }
   }
 
+  // La pestaña "Sugeridas" late con borde rojo mientras queden sugerencias
+  // sin resolver, para que el admin note que hay algo esperando aunque
+  // esté mirando otra pestaña.
+  function actualizarAlertaSugerencias() {
+    const btn = document.querySelector('.tabs-principal button[data-tab="sugeridas"]');
+    if (!btn) return;
+    btn.classList.toggle('alerta', sugerencias.length > 0);
+  }
+
   function render() {
+    actualizarAlertaSugerencias();
+    document.getElementById('countPendientesCatalogo').textContent = sugerenciasPendientes.length;
     const pendientes = solicitudes.filter(s => s.Estado !== 'Cantada');
 
     if (tabPrincipal === 'favoritos') { renderFavoritos(); return; }
-    if (tabPrincipal === 'catalogo') { renderCatalogo(); return; }
+    if (tabPrincipal === 'catalogo') {
+      if (subTabCatalogo === 'pendientes') { renderPendientesCatalogo(); } else { renderCatalogo(); }
+      return;
+    }
     if (tabPrincipal === 'sugeridas') { renderSugerencias(); return; }
     renderPeticiones(pendientes);
   }
@@ -707,7 +757,7 @@
         </div>
         <div class="actions">
           <button class="btn-ok btn-tengo" data-id="${s.IdSugerencia}">✅ La tengo</button>
-          <button class="btn-del btn-pendiente" data-id="${s.IdSugerencia}">⏳ Pendiente</button>
+          <button class="btn-del btn-pendiente" data-id="${s.IdSugerencia}">📋 Para Catalogar</button>
         </div>
       </div>
     `).join('');
@@ -718,11 +768,113 @@
       btn.addEventListener('click', () => resolverSugerenciaConTengo(sugerencias.find(s => String(s.IdSugerencia) === btn.dataset.id), btn));
     });
     listEl.querySelectorAll('.btn-pendiente').forEach(btn => {
-      btn.addEventListener('click', () => {
-        btn.textContent = '📌 Anotada';
-        setTimeout(() => { btn.textContent = '⏳ Pendiente'; }, 1200);
-      });
+      btn.addEventListener('click', () => marcarSugerenciaComoPendiente(sugerencias.find(s => String(s.IdSugerencia) === btn.dataset.id), btn));
     });
+  }
+
+  // Guarda en localStorage (modo local) el nuevo Estado de una sugerencia
+  // concreta, sin tocar las demás.
+  function guardarEstadoSugerenciaLocal(idSugerencia, estado) {
+    const todas = JSON.parse(localStorage.getItem(LS_SUGERENCIAS_LOCAL) || '[]');
+    const actualizadas = todas.map(s => String(s.IdSugerencia) === String(idSugerencia) ? Object.assign({}, s, { Estado: estado }) : s);
+    localStorage.setItem(LS_SUGERENCIAS_LOCAL, JSON.stringify(actualizadas));
+  }
+
+  // "Para Catalogar" desde Sugeridas: la tarjeta "vuela" hacia arriba
+  // igual que al marcar una petición como cantada, y se guarda aparte en
+  // Catálogo > Para Catalogar (cuya pestaña se ilumina un instante) para
+  // revisarla otro día con calma, en vez de perderse sin más.
+  async function marcarSugerenciaComoPendiente(sugerencia, btn) {
+    if (!sugerencia) return;
+    const card = btn.closest('.card');
+    if (card) {
+      card.classList.add('saliendo-cantada');
+      await new Promise(r => setTimeout(r, 380));
+    }
+    sugerencias = sugerencias.filter(s => String(s.IdSugerencia) !== String(sugerencia.IdSugerencia));
+    sugerenciasPendientes = [sugerencia].concat(sugerenciasPendientes);
+    render();
+    destellarTabPrincipal('catalogo');
+
+    if (MODO_LOCAL) {
+      guardarEstadoSugerenciaLocal(sugerencia.IdSugerencia, 'Pendiente');
+      return;
+    }
+    try {
+      await llamarAdminAPI('marcar_sugerencia_pendiente', { idSugerencia: sugerencia.IdSugerencia });
+    } catch (e) {
+      // Contraseña incorrecta o cancelada: se deshace recargando el estado real.
+      await cargar();
+    }
+  }
+
+  // "La tengo" desde Catálogo > Para Catalogar: mismo comportamiento que desde
+  // Sugeridas (añade al catálogo y crea la petición), pero quitando la
+  // tarjeta de la lista de pendientes y destellando "Peticiones".
+  async function resolverPendienteConTengo(sugerencia, btn) {
+    if (!sugerencia) return;
+    if (MODO_LOCAL) {
+      alert('Esto necesita el backend en directo (no funciona en modo local).');
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Añadiendo…';
+    try {
+      let imagenFinal = '';
+      try {
+        const data = await buscarEnItunesConCola(`${sugerencia.Artista} ${sugerencia.Titulo}`);
+        if (data && data.results && data.results[0] && data.results[0].artworkUrl100) {
+          imagenFinal = data.results[0].artworkUrl100.replace('100x100', '300x300');
+        }
+      } catch (e) { /* sin carátula si falla, se buscará más tarde */ }
+
+      const enlaceLetra = `https://genius.com/search?q=${encodeURIComponent(sugerencia.Artista + ' ' + sugerencia.Titulo)}`;
+      await llamarAdminAPI('resolver_sugerencia', {
+        idSugerencia: sugerencia.IdSugerencia,
+        titulo: sugerencia.Titulo, artista: sugerencia.Artista, solicitante: sugerencia.Solicitante,
+        imagenUrl: imagenFinal, enlaceLetra
+      });
+      sugerenciasPendientes = sugerenciasPendientes.filter(s => String(s.IdSugerencia) !== String(sugerencia.IdSugerencia));
+      cargarCatalogoCompleto();
+      render();
+      destellarTabPrincipal('peticiones');
+      alert(`"${sugerencia.Titulo}" añadida al repertorio y ya en la lista de peticiones.`);
+    } catch (e) {
+      if (e.message !== 'cancelado' && e.message !== 'clave_incorrecta') {
+        alert('No se pudo completar. Inténtalo de nuevo.');
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '✅ La tengo';
+    }
+  }
+
+  // "Descartar" desde Catálogo > Para Catalogar: la quita definitivamente de
+  // la lista (queda marcada como "Descartada" en la hoja, no se borra la
+  // fila, por si hiciera falta recuperar el dato más adelante).
+  async function descartarPendiente(sugerencia, btn) {
+    if (!sugerencia) return;
+    if (!confirm(`¿Descartar "${sugerencia.Titulo}" de la lista de Para Catalogar?`)) return;
+
+    if (MODO_LOCAL) {
+      guardarEstadoSugerenciaLocal(sugerencia.IdSugerencia, 'Descartada');
+      sugerenciasPendientes = sugerenciasPendientes.filter(s => String(s.IdSugerencia) !== String(sugerencia.IdSugerencia));
+      render();
+      return;
+    }
+
+    btn.disabled = true;
+    try {
+      await llamarAdminAPI('descartar_sugerencia', { idSugerencia: sugerencia.IdSugerencia });
+      sugerenciasPendientes = sugerenciasPendientes.filter(s => String(s.IdSugerencia) !== String(sugerencia.IdSugerencia));
+      render();
+    } catch (e) {
+      if (e.message !== 'cancelado' && e.message !== 'clave_incorrecta') {
+        alert('No se pudo completar. Inténtalo de nuevo.');
+      }
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function resolverSugerenciaConTengo(sugerencia, btn) {
@@ -751,6 +903,7 @@
       sugerencias = sugerencias.filter(s => String(s.IdSugerencia) !== String(sugerencia.IdSugerencia));
       cargarCatalogoCompleto();
       render();
+      destellarTabPrincipal('peticiones');
       alert(`"${sugerencia.Titulo}" añadida al repertorio y ya en la lista de peticiones.`);
     } catch (e) {
       if (e.message !== 'cancelado' && e.message !== 'clave_incorrecta') {
@@ -928,6 +1081,41 @@
     if (volver) enlazarVolverLetrasCatalogo();
   }
 
+  // Sugerencias que el admin dejó marcadas como "Para Catalogar" desde la
+  // pestaña Sugeridas, para gestionarlas con calma otro día sin que se
+  // pierdan entre medias.
+  function renderPendientesCatalogo() {
+    if (sugerenciasPendientes.length === 0) {
+      listEl.innerHTML = '<div class="empty">No hay canciones guardadas para catalogar 📋</div>';
+      return;
+    }
+
+    listEl.innerHTML = sugerenciasPendientes.map((s, i) => `
+      <div class="card">
+        <div class="cover" id="cover-${i}" data-artista="${escapeAttr(s.Artista)}" data-titulo="${escapeAttr(s.Titulo)}" data-imagen=""></div>
+        <div class="info">
+          <div class="title">${escapeHtml(s.Titulo)}</div>
+          <div class="artist">${escapeHtml(s.Artista)}</div>
+          <div class="who">🙋 <b>${escapeHtml(s.Solicitante)}</b></div>
+          <div class="time">🕐 ${formatHora(s.Timestamp)}</div>
+        </div>
+        <div class="actions">
+          <button class="btn-ok btn-tengo" data-id="${s.IdSugerencia}">✅ La tengo</button>
+          <button class="btn-del" data-id="${s.IdSugerencia}">🗑 Descartar</button>
+        </div>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
+
+    listEl.querySelectorAll('.btn-tengo').forEach(btn => {
+      btn.addEventListener('click', () => resolverPendienteConTengo(sugerenciasPendientes.find(s => String(s.IdSugerencia) === btn.dataset.id), btn));
+    });
+    listEl.querySelectorAll('.btn-del').forEach(btn => {
+      btn.addEventListener('click', () => descartarPendiente(sugerenciasPendientes.find(s => String(s.IdSugerencia) === btn.dataset.id), btn));
+    });
+  }
+
   function escapeHtml(str) {
     return (str || '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
@@ -1040,6 +1228,18 @@
     setTimeout(() => btn.classList.remove('destello'), 900);
   }
 
+  // Mismo efecto que destellarTabCantadas, pero para las pestañas
+  // principales (p.ej. "Peticiones" cuando una sugerencia resuelta con
+  // "La tengo" acaba de aterrizar ahí).
+  function destellarTabPrincipal(tab) {
+    const btn = document.querySelector(`.tabs-principal button[data-tab="${tab}"]`);
+    if (!btn) return;
+    btn.classList.remove('destello');
+    void btn.offsetWidth;
+    btn.classList.add('destello');
+    setTimeout(() => btn.classList.remove('destello'), 900);
+  }
+
   async function manejarAccion(id, accion) {
     if (accion === 'cantada') {
       // Antes de tocar los datos: la tarjeta "vuela" hacia arriba y se
@@ -1073,11 +1273,26 @@
     }
   }
 
-  document.querySelectorAll('.tabs button').forEach(btn => {
+  document.querySelectorAll('[data-seccion="peticiones"] .tabs button').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('[data-seccion="peticiones"] .tabs button').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       filtro = btn.dataset.f;
+      render();
+    });
+  });
+
+  // --- Catálogo: sub-pestañas Repertorio / Para Catalogar ---
+  const catalogoRepertorioControles = document.getElementById('catalogoRepertorioControles');
+  const notaPendientesCatalogo = document.getElementById('notaPendientesCatalogo');
+
+  document.querySelectorAll('#tabsCatalogoSub button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#tabsCatalogoSub button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      subTabCatalogo = btn.dataset.sub;
+      catalogoRepertorioControles.style.display = subTabCatalogo === 'repertorio' ? '' : 'none';
+      notaPendientesCatalogo.style.display = subTabCatalogo === 'pendientes' ? '' : 'none';
       render();
     });
   });
