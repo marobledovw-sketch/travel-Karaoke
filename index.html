@@ -333,9 +333,48 @@
   @keyframes fadein{from{opacity:0; transform:translate(-50%,10px);} to{opacity:1; transform:translate(-50%,0);}}
 
   .loading{text-align:center; padding:40px; color:var(--muted);}
+
+  /* Bloqueo de acceso: si el admin puso una contraseña de sesión, no se
+     deja ver ni usar el listado hasta introducirla (una vez, se recuerda
+     en este dispositivo). */
+  .gate-overlay{
+    position:fixed; inset:0; background:var(--bg1);
+    z-index:999; display:none; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  .gate-overlay.open{display:flex;}
+  .gate-card{
+    max-width:340px; width:100%; text-align:center;
+    display:flex; flex-direction:column; gap:14px; align-items:center;
+  }
+  .gate-logo{width:130px; height:auto;}
+  .gate-mensaje{color:var(--muted); font-size:.95rem; line-height:1.45; margin:0;}
+  .gate-card input{
+    width:100%; padding:13px 14px; border-radius:14px; box-sizing:border-box;
+    border:1px solid var(--card-border); background:var(--card); color:var(--text);
+    font-size:1rem; outline:none; text-align:center;
+  }
+  .gate-card input:focus{border-color:var(--accent2);}
+  .gate-card button{
+    width:100%; padding:13px; border-radius:14px; border:none;
+    background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#141414;
+    font-weight:700; font-size:1rem; cursor:pointer;
+  }
+  .gate-card button:disabled{opacity:.6;}
+  .gate-error{color:#ff8080; font-size:.85rem; margin:0;}
 </style>
 </head>
 <body>
+
+<div class="gate-overlay" id="gateSesion">
+  <div class="gate-card">
+    <img class="gate-logo" src="logo.png" alt="Travel Karaoke">
+    <p class="gate-mensaje">Para usar el listado necesitas introducir la contraseña que el personal encargado te ha facilitado.</p>
+    <input type="text" id="gateClaveInput" placeholder="Contraseña" autocomplete="off">
+    <button type="button" id="btnGateEntrar">Entrar</button>
+    <p class="gate-error" id="gateError" style="display:none">Contraseña incorrecta. Inténtalo de nuevo.</p>
+  </div>
+</div>
 
 <header>
   <div class="header-row">
@@ -410,6 +449,7 @@
   const LS_CATALOGO_EXTRA = 'karaoke_catalogo_extra';
   const LS_CONFIG = 'karaoke_config_local';
   const LS_FAVORITOS = 'karaoke_favoritos_local';
+  const LS_SESION_DESBLOQUEADA = 'karaoke_sesion_desbloqueada';
 
   let catalogo = [];
   let filtroCategoria = 'TODAS';
@@ -958,9 +998,71 @@
     return { anio: d.getFullYear(), mes: d.getMonth() + 1, dia: d.getDate() };
   }
 
-  cargarCatalogo();
-  cargarConfigEvento();
-  actualizarBotonFavoritos();
+  function iniciarApp() {
+    cargarCatalogo();
+    cargarConfigEvento();
+    actualizarBotonFavoritos();
+  }
+
+  // Si el admin puso una contraseña de sesión, se pide antes de dejar ver
+  // nada del listado. Una vez acertada, se recuerda en este dispositivo
+  // (localStorage) para no volver a pedirla en próximas visitas.
+  async function comprobarClaveSesion() {
+    if (MODO_LOCAL) { iniciarApp(); return; }
+
+    let haceFalta = false;
+    try {
+      const res = await fetch(`${CONFIG.API_URL}?action=hay_clave_sesion`);
+      const datos = await res.json();
+      haceFalta = !!datos.hay;
+    } catch (e) { haceFalta = false; }
+
+    if (!haceFalta || localStorage.getItem(LS_SESION_DESBLOQUEADA) === '1') {
+      iniciarApp();
+      return;
+    }
+
+    document.getElementById('gateSesion').classList.add('open');
+    document.getElementById('gateClaveInput').focus();
+  }
+
+  const gateClaveInput = document.getElementById('gateClaveInput');
+  const btnGateEntrar = document.getElementById('btnGateEntrar');
+  const gateError = document.getElementById('gateError');
+
+  async function intentarEntrar() {
+    const clave = gateClaveInput.value.trim();
+    gateError.style.display = 'none';
+    btnGateEntrar.disabled = true;
+    btnGateEntrar.textContent = 'Comprobando…';
+    try {
+      const res = await fetch(CONFIG.API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'verificar_clave_sesion', clave })
+      });
+      const resultado = await res.json();
+      if (resultado && resultado.ok) {
+        localStorage.setItem(LS_SESION_DESBLOQUEADA, '1');
+        document.getElementById('gateSesion').classList.remove('open');
+        iniciarApp();
+      } else {
+        gateError.textContent = 'Contraseña incorrecta. Inténtalo de nuevo.';
+        gateError.style.display = '';
+      }
+    } catch (e) {
+      gateError.textContent = 'No se pudo comprobar la contraseña. Inténtalo de nuevo.';
+      gateError.style.display = '';
+    } finally {
+      btnGateEntrar.disabled = false;
+      btnGateEntrar.textContent = 'Entrar';
+    }
+  }
+
+  btnGateEntrar.addEventListener('click', intentarEntrar);
+  gateClaveInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') intentarEntrar(); });
+
+  comprobarClaveSesion();
 </script>
 </body>
 </html>

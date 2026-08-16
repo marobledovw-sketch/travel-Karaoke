@@ -166,10 +166,12 @@
     border-radius:14px; padding:12px;
   }
   .card.cantada{opacity:.5;}
+  /* Por defecto se ve el logo, en vez de un icono genérico o el cuadro
+     vacío; el JS le pone background-size:cover encima en cuanto encuentra
+     una carátula real, para que la foto llene el cuadro. */
   .cover{
     width:56px; height:56px; border-radius:10px; flex-shrink:0;
-    background:#282828 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23b3b3b3"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg>') center/60% no-repeat;
-    background-size:cover; background-position:center;
+    background:#1c1e21 url('logo.png') center/68% no-repeat;
   }
   .info{flex:1; min-width:0;}
   .title{font-weight:700; font-size:1.2rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -177,12 +179,38 @@
   .who{font-size:1.05rem; margin-top:4px;}
   .who b{color:var(--accent2); font-size:1.15rem;}
   .time{color:var(--muted); font-size:.7rem; margin-top:2px;}
-  .actions{display:flex; flex-direction:column; gap:6px; flex-shrink:0;}
+  .actions{display:flex; flex-direction:column; gap:6px; flex-shrink:0; width:118px;}
   .actions button{
     border:none; border-radius:8px; padding:8px 10px; font-size:.75rem; font-weight:700; cursor:pointer; white-space:nowrap;
   }
-  .btn-ok{background:var(--ok); color:#063820;}
+  .btn-ok{
+    background:transparent; color:var(--ok); border:2px solid var(--ok) !important;
+    white-space:normal; text-align:center; line-height:1.25; transition:background .15s, color .15s;
+  }
+  .btn-ok:hover{background:var(--ok); color:#063820;}
   .btn-del{background:transparent; color:var(--muted); border:1px solid var(--card-border) !important;}
+
+  /* Animación al marcar como cantada: la tarjeta "vuela" hacia arriba y se
+     desvanece justo antes de moverse de verdad a la pestaña Cantadas. */
+  .card.saliendo-cantada{
+    transition:transform .4s ease, opacity .4s ease;
+    transform:translateY(-30px);
+    opacity:0;
+  }
+
+  .tab-count{
+    display:inline-block; margin-left:4px; padding:1px 6px; border-radius:8px;
+    background:rgba(255,255,255,.12); font-size:.72rem; font-weight:700;
+  }
+  .tabs button.active .tab-count{background:rgba(0,0,0,.2);}
+
+  /* La pestaña Cantadas se ilumina un instante cuando algo se acaba de
+     marcar, para que el admin note hacia dónde "voló" la tarjeta. */
+  @keyframes destelloCantadas{
+    0%, 100% { box-shadow:none; }
+    50% { box-shadow:0 0 0 4px rgba(29,185,84,.6); }
+  }
+  .tabs button.destello{ animation:destelloCantadas .9s ease; }
 
   .empty{text-align:center; color:var(--muted); padding:50px 20px;}
   .refresh-note{text-align:center; color:var(--muted); font-size:.72rem; margin-top:18px;}
@@ -302,8 +330,9 @@
 
 <div class="seccion-tab" data-seccion="peticiones">
   <div class="tabs">
-    <button data-f="pendientes" class="active">Pendientes</button>
-    <button data-f="todas">Todas</button>
+    <button data-f="pendientes" class="active">Pendientes <span class="tab-count" id="countPendientes">0</span></button>
+    <button data-f="cantadas">Cantadas <span class="tab-count" id="countCantadas">0</span></button>
+    <button data-f="todas">Todas <span class="tab-count" id="countTodas">0</span></button>
   </div>
   <div class="manual-add">
     <button type="button" class="manual-add-toggle" id="toggleManual">➕ Añadir petición manual</button>
@@ -387,11 +416,13 @@
 <div class="dialog-overlay" id="overlayEvento">
   <div class="dialog-card">
     <button type="button" class="dialog-close" id="cerrarEvento" aria-label="Cerrar">✕</button>
-    <p class="dialog-title">Lugar y fecha del evento</p>
-    <p class="catalogo-add-nota">Esto se muestra junto al logo en la pantalla de los usuarios: el lugar a la izquierda y la fecha, en formato calendario, a la derecha.</p>
+    <p class="dialog-title">Lugar, fecha y contraseña de la sesión</p>
+    <p class="catalogo-add-nota">El lugar y la fecha se muestran junto al logo en la pantalla de los usuarios. La contraseña de sesión es la que reparte el personal del evento: sin ella no se puede usar el listado del index (no distingue mayúsculas/minúsculas). Déjala vacía para no pedir ninguna.</p>
     <input type="text" id="eventoLugarInput" placeholder="Lugar (ej. Salón de actos, Residencia...)" maxlength="60" autocomplete="off">
     <span class="campo-label">Fecha</span>
     <input type="date" id="eventoFechaInput">
+    <span class="campo-label">Contraseña de la sesión (para el index)</span>
+    <input type="text" id="eventoClaveSesionInput" placeholder="Vacío = sin contraseña" maxlength="40" autocomplete="off">
     <button type="button" id="btnGuardarEvento">Guardar 📍</button>
   </div>
 </div>
@@ -562,15 +593,27 @@
   }
 
   function renderPeticiones(pendientes) {
-    const mostrar = filtro === 'pendientes' ? pendientes : solicitudes;
+    const cantadas = solicitudes.filter(s => s.Estado === 'Cantada')
+      .slice()
+      .sort((a, b) => new Date(b.FechaCantada || b.Timestamp) - new Date(a.FechaCantada || a.Timestamp));
+
+    document.getElementById('countPendientes').textContent = pendientes.length;
+    document.getElementById('countCantadas').textContent = cantadas.length;
+    document.getElementById('countTodas').textContent = solicitudes.length;
+
+    let mostrar;
+    if (filtro === 'pendientes') mostrar = pendientes;
+    else if (filtro === 'cantadas') mostrar = cantadas;
+    else mostrar = solicitudes;
 
     if (mostrar.length === 0) {
-      listEl.innerHTML = '<div class="empty">No hay solicitudes' + (filtro === 'pendientes' ? ' pendientes' : '') + ' todavía 🎤</div>';
+      const vacioTexto = filtro === 'pendientes' ? ' pendientes' : filtro === 'cantadas' ? ' cantadas' : '';
+      listEl.innerHTML = '<div class="empty">No hay solicitudes' + vacioTexto + ' todavía 🎤</div>';
       return;
     }
 
     listEl.innerHTML = mostrar.map((s, i) => `
-      <div class="card ${s.Estado === 'Cantada' ? 'cantada' : ''}">
+      <div class="card ${s.Estado === 'Cantada' ? 'cantada' : ''}" data-id="${s.IdSolicitud}">
         <div class="cover" id="cover-${i}" data-artista="${escapeAttr(s.Artista)}" data-titulo="${escapeAttr(s.Titulo)}" data-imagen="${escapeAttr(imagenParaSolicitud(s))}"></div>
         <div class="info">
           <div class="title">${escapeHtml(s.Titulo)}</div>
@@ -579,7 +622,7 @@
           <div class="time">${formatHora(s.Timestamp)}</div>
         </div>
         <div class="actions">
-          ${s.Estado !== 'Cantada' ? `<button class="btn-ok" data-id="${s.IdSolicitud}" data-action="cantada">✔ Cantada</button>` : ''}
+          ${s.Estado !== 'Cantada' ? `<button class="btn-ok" data-id="${s.IdSolicitud}" data-action="cantada">Marcar como<br>Cantada</button>` : ''}
           <button class="btn-del" data-id="${s.IdSolicitud}" data-action="eliminar">🗑 Quitar</button>
         </div>
       </div>
@@ -809,6 +852,7 @@
     const imagenManual = el.dataset.imagen;
     if (imagenManual) {
       el.style.backgroundImage = `url('${imagenManual}')`;
+      el.style.backgroundSize = 'cover';
       return;
     }
     const artista = el.dataset.artista;
@@ -816,6 +860,7 @@
     const key = normaliza(`${artista}|${titulo}`);
     if (cacheCaratulas[key]) {
       el.style.backgroundImage = `url('${cacheCaratulas[key]}')`;
+      el.style.backgroundSize = 'cover';
       return;
     }
     try {
@@ -824,6 +869,7 @@
         const url = data.results[0].artworkUrl100.replace('100x100', '300x300');
         cacheCaratulas[key] = url;
         el.style.backgroundImage = `url('${url}')`;
+        el.style.backgroundSize = 'cover';
       }
     } catch (e) { /* icono genérico si falla */ }
   }
@@ -870,15 +916,35 @@
     });
   }
 
+  // Que la pestaña "Cantadas" se ilumine un instante, para que se note
+  // hacia dónde se ha movido la tarjeta que se acaba de marcar.
+  function destellarTabCantadas() {
+    const btn = document.querySelector('.tabs button[data-f="cantadas"]');
+    if (!btn) return;
+    btn.classList.remove('destello');
+    void btn.offsetWidth; // fuerza a reiniciar la animación si se repite seguido
+    btn.classList.add('destello');
+    setTimeout(() => btn.classList.remove('destello'), 900);
+  }
+
   async function manejarAccion(id, accion) {
-    // Actualización optimista en pantalla
     if (accion === 'cantada') {
+      // Antes de tocar los datos: la tarjeta "vuela" hacia arriba y se
+      // desvanece, para que se note que se ha movido a otra pestaña en
+      // vez de desaparecer sin más.
+      const card = listEl.querySelector(`.card[data-id="${id}"]`);
+      if (card) {
+        card.classList.add('saliendo-cantada');
+        await new Promise(r => setTimeout(r, 380));
+      }
       const s = solicitudes.find(s => String(s.IdSolicitud) === String(id));
-      if (s) s.Estado = 'Cantada';
+      if (s) { s.Estado = 'Cantada'; s.FechaCantada = new Date().toISOString(); }
+      render();
+      destellarTabCantadas();
     } else if (accion === 'eliminar') {
       solicitudes = solicitudes.filter(s => String(s.IdSolicitud) !== String(id));
+      render();
     }
-    render();
 
     if (MODO_LOCAL) {
       localStorage.setItem(LS_KEY, JSON.stringify(solicitudes));
@@ -1251,6 +1317,7 @@
 
   function actualizarPreviewCoverEdicion() {
     editCoverPreview.style.backgroundImage = imagenEdicionActual ? `url('${imagenEdicionActual}')` : '';
+    editCoverPreview.style.backgroundSize = imagenEdicionActual ? 'cover' : '';
   }
 
   function abrirEdicionCancion(c) {
@@ -1332,6 +1399,7 @@
       cacheCaratulas[normaliza(`${c.Artista}|${c.Titulo}`)] = nuevaUrl;
       const cover = btn.closest('.cover-wrap').querySelector('.cover');
       cover.style.backgroundImage = `url('${nuevaUrl}')`;
+      cover.style.backgroundSize = 'cover';
     } catch (e) {
       if (e.message !== 'cancelado' && e.message !== 'clave_incorrecta') {
         alert('No se pudo actualizar la carátula. Inténtalo de nuevo.');
@@ -1530,6 +1598,7 @@
   const cerrarEvento = document.getElementById('cerrarEvento');
   const eventoLugarInput = document.getElementById('eventoLugarInput');
   const eventoFechaInput = document.getElementById('eventoFechaInput');
+  const eventoClaveSesionInput = document.getElementById('eventoClaveSesionInput');
   const btnGuardarEvento = document.getElementById('btnGuardarEvento');
 
   function cerrarDialogoEvento() {
@@ -1572,6 +1641,13 @@
     const cfg = await leerConfigEvento();
     eventoLugarInput.value = cfg.Lugar || '';
     eventoFechaInput.value = fechaAInputValue(cfg.Fecha);
+    eventoClaveSesionInput.value = '';
+    if (!MODO_LOCAL) {
+      try {
+        const resultado = await llamarAdminAPI('leer_clave_sesion', {});
+        eventoClaveSesionInput.value = (resultado && resultado.claveSesion) || '';
+      } catch (e) { /* si se cancela o falla, se deja vacío */ }
+    }
   }
 
   const MESES_LARGOS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -1596,13 +1672,14 @@
   btnGuardarEvento.addEventListener('click', async () => {
     const lugar = eventoLugarInput.value.trim();
     const fecha = eventoFechaInput.value;
+    const claveSesion = eventoClaveSesionInput.value.trim();
     btnGuardarEvento.disabled = true;
     btnGuardarEvento.textContent = 'Guardando…';
     try {
       if (MODO_LOCAL) {
         localStorage.setItem(LS_CONFIG, JSON.stringify({ Lugar: lugar, Fecha: fecha }));
       } else {
-        await llamarAdminAPI('guardar_config', { lugar, fecha });
+        await llamarAdminAPI('guardar_config', { lugar, fecha, claveSesion });
       }
       cerrarDialogoEvento();
       cargarResumenEvento();
