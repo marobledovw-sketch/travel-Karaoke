@@ -28,7 +28,7 @@
     padding:14px 16px 14px;
     text-align:center;
     position:sticky; top:0;
-    background:linear-gradient(180deg, var(--bg1) 75%, transparent);
+    background:var(--bg1);
     z-index:5;
   }
   .btn-ajustes{
@@ -94,10 +94,10 @@
     background-size:cover; background-position:center;
   }
   .info{flex:1; min-width:0;}
-  .title{font-weight:700; font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .artist{color:var(--muted); font-size:.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .who{font-size:.8rem; margin-top:2px;}
-  .who b{color:var(--accent2);}
+  .title{font-weight:700; font-size:1.2rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .artist{color:var(--muted); font-size:1.05rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .who{font-size:1.05rem; margin-top:4px;}
+  .who b{color:var(--accent2); font-size:1.15rem;}
   .time{color:var(--muted); font-size:.7rem; margin-top:2px;}
   .actions{display:flex; flex-direction:column; gap:6px; flex-shrink:0;}
   .actions button{
@@ -179,6 +179,10 @@
 
   .campo-label{color:var(--muted); font-size:.72rem; margin:-2px 0 -4px 2px;}
   .catalogo-add-nota{color:var(--muted); font-size:.75rem; margin:0; line-height:1.4;}
+  .dialog-card input[type="file"]{
+    padding:9px; font-size:.8rem; color:var(--muted);
+  }
+  .excel-estado{color:var(--muted); font-size:.8rem; margin:0;}
 </style>
 </head>
 <body>
@@ -187,6 +191,8 @@
   <button type="button" class="btn-ajustes" id="btnAjustes" aria-label="Ajustes">⚙️</button>
   <div class="menu-ajustes" id="menuAjustes">
     <button type="button" id="toggleCatalogo">🎶 Añadir canción al repertorio</button>
+    <button type="button" id="toggleExcel">📊 Importar canciones (Excel)</button>
+    <button type="button" id="toggleEvento">📍 Lugar y fecha del evento</button>
   </div>
   <img class="logo" src="logo.png" alt="Travel Karaoke">
   <h1>🎧 Panel del Admin</h1>
@@ -242,10 +248,35 @@
   </div>
 </div>
 
+<div class="dialog-overlay" id="overlayExcel">
+  <div class="dialog-card">
+    <button type="button" class="dialog-close" id="cerrarExcel" aria-label="Cerrar">✕</button>
+    <p class="dialog-title">Importar canciones desde Excel</p>
+    <p class="catalogo-add-nota">Sube un Excel (.xlsx) o CSV con columnas <b>Titulo</b>, <b>Artista</b>, <b>Idioma</b> (ES o EXT) y <b>Categoria</b> (General o Infantil). Si no indicas Idioma o Categoria se usan ES y General por defecto. La carátula se busca sola para cada canción.</p>
+    <button type="button" class="manual-add-toggle" id="btnPlantilla">📥 Descargar plantilla de ejemplo</button>
+    <input type="file" id="excelFile" accept=".xlsx,.xls,.csv">
+    <p class="excel-estado" id="excelEstado"></p>
+    <button type="button" id="btnImportarExcel" disabled>Añadir al repertorio 🎶</button>
+  </div>
+</div>
+
+<div class="dialog-overlay" id="overlayEvento">
+  <div class="dialog-card">
+    <button type="button" class="dialog-close" id="cerrarEvento" aria-label="Cerrar">✕</button>
+    <p class="dialog-title">Lugar y fecha del evento</p>
+    <p class="catalogo-add-nota">Esto se muestra junto al logo en la pantalla de los usuarios: el lugar a la izquierda y la fecha, en formato calendario, a la derecha.</p>
+    <input type="text" id="eventoLugarInput" placeholder="Lugar (ej. Salón de actos, Residencia...)" maxlength="60" autocomplete="off">
+    <span class="campo-label">Fecha</span>
+    <input type="date" id="eventoFechaInput">
+    <button type="button" id="btnGuardarEvento">Guardar 📍</button>
+  </div>
+</div>
+
 <div class="list" id="list"><div class="empty">Cargando…</div></div>
 <p class="refresh-note">Se actualiza automáticamente cada 6 segundos</p>
 
 <script src="catalogo_data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
   // ⚠️ CONFIGURACIÓN: pega aquí la misma URL /exec de tu Google Apps Script.
   // Mientras esto diga 'PEGA_AQUI...', el panel funciona en MODO LOCAL: lee
@@ -623,13 +654,28 @@
     btnAgregarCatalogo.disabled = true;
     btnAgregarCatalogo.textContent = 'Añadiendo…';
     try {
+      // Si no se puso una URL de carátula a mano, se busca sola en iTunes
+      // en este momento y se guarda ya resuelta en la ficha de la canción,
+      // para no tener que buscarla en directo cada vez que alguien la vea.
+      let imagenFinal = imagenUrl;
+      if (!imagenFinal) {
+        btnAgregarCatalogo.textContent = 'Buscando carátula…';
+        try {
+          const data = await buscarEnItunesConCola(`${artista} ${titulo}`);
+          if (data && data.results && data.results[0] && data.results[0].artworkUrl100) {
+            imagenFinal = data.results[0].artworkUrl100.replace('100x100', '300x300');
+          }
+        } catch (e) { /* si falla, se deja sin carátula (usará el icono genérico) */ }
+        btnAgregarCatalogo.textContent = 'Añadiendo…';
+      }
+
       const nuevaCancion = {
         ID: Date.now(),
         Titulo: titulo,
         Artista: artista,
         Idioma: idioma,
         Categoria: categoria,
-        Imagen_URL: imagenUrl,
+        Imagen_URL: imagenFinal,
         Enlace_Letra: enlaceLetra
       };
       if (MODO_LOCAL) {
@@ -643,7 +689,8 @@
           mode: 'no-cors',
           body: JSON.stringify({
             action: 'nueva_cancion',
-            titulo, artista, idioma, categoria, imagenUrl,
+            titulo, artista, idioma, categoria,
+            imagenUrl: imagenFinal,
             enlaceLetra
           })
         });
@@ -661,6 +708,190 @@
     } finally {
       btnAgregarCatalogo.disabled = false;
       btnAgregarCatalogo.textContent = 'Añadir al repertorio 🎶';
+    }
+  });
+
+  // --- Importar canciones desde Excel/CSV ---
+  const toggleExcel = document.getElementById('toggleExcel');
+  const overlayExcel = document.getElementById('overlayExcel');
+  const cerrarExcel = document.getElementById('cerrarExcel');
+  const btnPlantilla = document.getElementById('btnPlantilla');
+  const excelFile = document.getElementById('excelFile');
+  const excelEstado = document.getElementById('excelEstado');
+  const btnImportarExcel = document.getElementById('btnImportarExcel');
+  let cancionesExcel = [];
+
+  function cerrarDialogoExcel() {
+    overlayExcel.classList.remove('open');
+  }
+
+  toggleExcel.addEventListener('click', () => {
+    menuAjustes.classList.remove('open');
+    overlayExcel.classList.add('open');
+  });
+  cerrarExcel.addEventListener('click', cerrarDialogoExcel);
+  overlayExcel.addEventListener('click', (e) => { if (e.target === overlayExcel) cerrarDialogoExcel(); });
+
+  // Plantilla de ejemplo descargable, para que quede claro qué columnas
+  // espera el importador (no hace falta subirla a ningún sitio: se genera
+  // al vuelo en el propio navegador).
+  btnPlantilla.addEventListener('click', () => {
+    const filas = [
+      ['Titulo', 'Artista', 'Idioma', 'Categoria', 'Imagen_URL', 'Enlace_Letra'],
+      ['Bohemian Rhapsody', 'Queen', 'EXT', 'General', '', ''],
+      ['La Bicicleta', 'Carlos Vives y Shakira', 'ES', 'General', '', ''],
+      ['Cumpleaños Feliz', 'Tradicional', 'ES', 'Infantil', '', '']
+    ];
+    const csv = filas.map(f => f.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plantilla_canciones.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  excelFile.addEventListener('change', async () => {
+    const file = excelFile.files[0];
+    cancionesExcel = [];
+    btnImportarExcel.disabled = true;
+    if (!file) { excelEstado.textContent = ''; return; }
+
+    excelEstado.textContent = 'Leyendo archivo…';
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const hoja = wb.Sheets[wb.SheetNames[0]];
+      const filas = XLSX.utils.sheet_to_json(hoja, { defval: '' });
+
+      cancionesExcel = filas.map(f => ({
+        Titulo: String(f.Titulo || f.titulo || f.Título || '').trim(),
+        Artista: String(f.Artista || f.artista || '').trim(),
+        Idioma: String(f.Idioma || f.idioma || 'ES').trim().toUpperCase() === 'EXT' ? 'EXT' : 'ES',
+        Categoria: String(f.Categoria || f.categoria || f.Categoría || '').trim().toLowerCase() === 'infantil' ? 'Infantil' : 'General',
+        Imagen_URL: String(f.Imagen_URL || f.imagen_url || '').trim(),
+        Enlace_Letra: String(f.Enlace_Letra || f.enlace_letra || '').trim()
+      })).filter(c => c.Titulo);
+
+      if (cancionesExcel.length === 0) {
+        excelEstado.textContent = 'No se ha encontrado ninguna fila válida (revisa que haya una columna "Titulo").';
+      } else {
+        excelEstado.textContent = `${cancionesExcel.length} canción${cancionesExcel.length === 1 ? '' : 'es'} detectada${cancionesExcel.length === 1 ? '' : 's'}. Lista para añadir.`;
+        btnImportarExcel.disabled = false;
+      }
+    } catch (e) {
+      excelEstado.textContent = 'No se pudo leer el archivo. ¿Es un Excel o CSV válido?';
+    }
+  });
+
+  btnImportarExcel.addEventListener('click', async () => {
+    btnImportarExcel.disabled = true;
+    excelFile.disabled = true;
+    let hechas = 0;
+    for (const c of cancionesExcel) {
+      excelEstado.textContent = `Añadiendo ${hechas + 1} de ${cancionesExcel.length}… (${c.Titulo})`;
+      let imagenFinal = c.Imagen_URL;
+      const enlaceLetra = c.Enlace_Letra || `https://genius.com/search?q=${encodeURIComponent(c.Artista + ' ' + c.Titulo)}`;
+      if (!imagenFinal) {
+        try {
+          const data = await buscarEnItunesConCola(`${c.Artista} ${c.Titulo}`);
+          if (data && data.results && data.results[0] && data.results[0].artworkUrl100) {
+            imagenFinal = data.results[0].artworkUrl100.replace('100x100', '300x300');
+          }
+        } catch (e) { /* sin carátula si falla, usará el icono genérico */ }
+      }
+
+      const nuevaCancion = {
+        ID: Date.now() + hechas,
+        Titulo: c.Titulo,
+        Artista: c.Artista,
+        Idioma: c.Idioma,
+        Categoria: c.Categoria,
+        Imagen_URL: imagenFinal || '',
+        Enlace_Letra: enlaceLetra
+      };
+      if (MODO_LOCAL) {
+        const extra = JSON.parse(localStorage.getItem(LS_CATALOGO_EXTRA) || '[]');
+        extra.push(nuevaCancion);
+        localStorage.setItem(LS_CATALOGO_EXTRA, JSON.stringify(extra));
+        catalogoCompleto.push(nuevaCancion);
+      } else {
+        await fetch(CONFIG.API_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify({
+            action: 'nueva_cancion',
+            titulo: c.Titulo, artista: c.Artista, idioma: c.Idioma, categoria: c.Categoria,
+            imagenUrl: imagenFinal || '', enlaceLetra
+          })
+        });
+        catalogoCompleto.push(nuevaCancion);
+      }
+      hechas++;
+    }
+    excelEstado.textContent = `${hechas} canción${hechas === 1 ? '' : 'es'} añadida${hechas === 1 ? '' : 's'} al repertorio ✅`;
+    cancionesExcel = [];
+    excelFile.value = '';
+    excelFile.disabled = false;
+  });
+
+  // --- Lugar y fecha del evento (se muestra junto al logo en index.html) ---
+  const LS_CONFIG = 'karaoke_config_local';
+  const toggleEvento = document.getElementById('toggleEvento');
+  const overlayEvento = document.getElementById('overlayEvento');
+  const cerrarEvento = document.getElementById('cerrarEvento');
+  const eventoLugarInput = document.getElementById('eventoLugarInput');
+  const eventoFechaInput = document.getElementById('eventoFechaInput');
+  const btnGuardarEvento = document.getElementById('btnGuardarEvento');
+
+  function cerrarDialogoEvento() {
+    overlayEvento.classList.remove('open');
+  }
+
+  async function abrirDialogoEvento() {
+    menuAjustes.classList.remove('open');
+    overlayEvento.classList.add('open');
+    let cfg = { Lugar: '', Fecha: '' };
+    if (MODO_LOCAL) {
+      cfg = JSON.parse(localStorage.getItem(LS_CONFIG) || 'null') || cfg;
+    } else {
+      try {
+        const res = await fetch(`${CONFIG.API_URL}?action=config&_=${Date.now()}`);
+        cfg = await res.json();
+      } catch (e) { /* si falla, se dejan los campos vacíos */ }
+    }
+    eventoLugarInput.value = cfg.Lugar || '';
+    eventoFechaInput.value = cfg.Fecha || '';
+  }
+
+  toggleEvento.addEventListener('click', abrirDialogoEvento);
+  cerrarEvento.addEventListener('click', cerrarDialogoEvento);
+  overlayEvento.addEventListener('click', (e) => { if (e.target === overlayEvento) cerrarDialogoEvento(); });
+
+  btnGuardarEvento.addEventListener('click', async () => {
+    const lugar = eventoLugarInput.value.trim();
+    const fecha = eventoFechaInput.value;
+    btnGuardarEvento.disabled = true;
+    btnGuardarEvento.textContent = 'Guardando…';
+    try {
+      if (MODO_LOCAL) {
+        localStorage.setItem(LS_CONFIG, JSON.stringify({ Lugar: lugar, Fecha: fecha }));
+      } else {
+        await fetch(CONFIG.API_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify({ action: 'guardar_config', lugar, fecha })
+        });
+      }
+      cerrarDialogoEvento();
+    } catch (e) {
+      alert('No se pudo guardar. Inténtalo de nuevo.');
+    } finally {
+      btnGuardarEvento.disabled = false;
+      btnGuardarEvento.textContent = 'Guardar 📍';
     }
   });
 

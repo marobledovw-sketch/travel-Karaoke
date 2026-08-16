@@ -32,15 +32,9 @@
     inset:0;
     z-index:-1;
     background-color:var(--bg1);
-    /* Radio fijo en px (no % del "farthest-corner"): con % el tamaño del
-       degradado depende de la proporción ancho/alto de la pantalla, y en
-       un móvil (muy alto y estrecho) el mismo % da un radio enorme, que
-       se ve como una mancha plana con un corte duro en vez de un brillo
-       suave — en PC (pantalla ancha) el mismo cálculo da un radio mucho
-       más discreto. Con un radio en px se ve igual de sutil en ambos. */
     background-image:
-      radial-gradient(circle 280px at 12% -5%, rgba(0,173,255,.35) 0%, rgba(0,173,255,.08) 55%, rgba(0,173,255,0) 100%),
-      radial-gradient(circle 260px at 105% 105%, rgba(232,130,60,.28) 0%, rgba(232,130,60,.06) 55%, rgba(232,130,60,0) 100%);
+      radial-gradient(circle at 12% -5%, rgba(0,173,255,.35) 0%, rgba(0,173,255,0) 48%),
+      radial-gradient(circle at 105% 105%, rgba(232,130,60,.28) 0%, rgba(232,130,60,0) 55%);
     /* En Safari/iOS los elementos "fixed" pueden quedarse un instante
        rezagados durante el gesto de scroll (se ven "arrastrar" un poco
        antes de encajar en su sitio), lo que se nota como una segunda capa
@@ -54,13 +48,47 @@
     padding:18px 16px 6px;
     text-align:center;
   }
+  header .header-row{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    align-items:center;
+    gap:8px;
+    max-width:640px;
+    margin:0 auto;
+  }
   header .logo{
     display:block;
     width:150px;
     height:auto;
     margin:0 auto;
+    grid-column:2;
   }
   header p{margin:2px 0 0; color:var(--muted); font-size:.85rem;}
+
+  .evento-lugar{
+    grid-column:1; justify-self:start; text-align:left;
+    color:var(--muted); font-size:.8rem; font-weight:600; line-height:1.25;
+    max-width:120px;
+  }
+  /* Ficha de fecha "estilo calendario moderno": mes arriba en una franja de
+     color y el número de día grande debajo, como un icono de calendario. */
+  .evento-fecha{
+    grid-column:3; justify-self:end;
+    width:52px; border-radius:10px; overflow:hidden;
+    border:1px solid var(--card-border);
+    box-shadow:0 4px 10px rgba(0,0,0,.3);
+  }
+  .evento-fecha .fecha-mes{
+    display:block; text-align:center;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    color:#141414; font-size:.62rem; font-weight:700;
+    letter-spacing:.04em; padding:2px 0;
+  }
+  .evento-fecha .fecha-dia{
+    display:block; text-align:center;
+    background:var(--card); color:var(--text);
+    font-size:1.3rem; font-weight:700; padding:2px 0 4px;
+  }
 
   .controls{
     padding:0 16px;
@@ -68,10 +96,6 @@
     margin:0 auto;
     position:sticky;
     top:0;
-    /* Fondo sólido (no degradado a transparente): así, si una tarjeta
-       queda detrás al desplegar otra cercana, se oculta limpiamente en
-       vez de mezclar su texto con el de esta barra. */
-    background:var(--bg1);
     z-index:5;
     padding-top:8px;
     padding-bottom:8px;
@@ -126,7 +150,6 @@
     font-size:1rem;
     opacity:.7;
   }
-  .search-hint{color:var(--muted); font-size:.72rem; margin:2px 4px 0;}
   .count{color:var(--muted); font-size:.8rem; margin:10px 4px 4px; max-width:640px; margin-left:auto; margin-right:auto; padding:0 12px;}
 
   .list{
@@ -281,7 +304,14 @@
 <body>
 
 <header>
-  <img class="logo" src="logo.png" alt="Travel Karaoke">
+  <div class="header-row">
+    <div class="evento-lugar" id="eventoLugar"></div>
+    <img class="logo" src="logo.png" alt="Travel Karaoke">
+    <div class="evento-fecha" id="eventoFecha" style="display:none">
+      <span class="fecha-mes" id="fechaMes"></span>
+      <span class="fecha-dia" id="fechaDia"></span>
+    </div>
+  </div>
   <p>Busca tu canción y pide tu turno</p>
 </header>
 
@@ -298,7 +328,6 @@
   <div class="search-box">
     <input id="searchInput" type="text" placeholder="Busca por cantante, título o palabra clave...">
   </div>
-  <p class="search-hint">Escribe algo o elige arriba cómo quieres explorar el listado</p>
 </div>
 
 <p class="count" id="count"></p>
@@ -320,6 +349,7 @@
   const MODO_LOCAL = !CONFIG.API_URL || CONFIG.API_URL.includes('PEGA_AQUI');
   const LS_KEY = 'karaoke_solicitudes_local';
   const LS_CATALOGO_EXTRA = 'karaoke_catalogo_extra';
+  const LS_CONFIG = 'karaoke_config_local';
 
   let catalogo = [];
   let filtroCategoria = 'TODAS';
@@ -759,7 +789,36 @@
     debounce = setTimeout(render, 150);
   });
 
+  const MESES_CORTOS = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+
+  async function cargarConfigEvento() {
+    let cfg = { Lugar: '', Fecha: '' };
+    if (MODO_LOCAL) {
+      cfg = JSON.parse(localStorage.getItem(LS_CONFIG) || 'null') || cfg;
+    } else {
+      try {
+        const res = await fetch(`${CONFIG.API_URL}?action=config`);
+        cfg = await res.json();
+      } catch (e) { /* si falla, simplemente no se muestra nada */ }
+    }
+
+    const lugarEl = document.getElementById('eventoLugar');
+    if (cfg.Lugar) lugarEl.textContent = '📍 ' + cfg.Lugar;
+
+    if (cfg.Fecha) {
+      // Fecha llega como 'YYYY-MM-DD'; se construye en local (no UTC) para
+      // que no se desplace un día según la zona horaria del navegador.
+      const [anio, mes, dia] = cfg.Fecha.split('-').map(Number);
+      if (anio && mes && dia) {
+        document.getElementById('fechaMes').textContent = MESES_CORTOS[mes - 1];
+        document.getElementById('fechaDia').textContent = dia;
+        document.getElementById('eventoFecha').style.display = '';
+      }
+    }
+  }
+
   cargarCatalogo();
+  cargarConfigEvento();
 </script>
 </body>
 </html>
