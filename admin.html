@@ -165,7 +165,9 @@
     background:var(--card); border:1px solid var(--card-border);
     border-radius:14px; padding:12px;
   }
-  .card.cantada{opacity:.5;}
+  /* Antes se atenuaban con opacity, pero costaba leerlas; ahora solo se
+     distinguen con un borde verde tenue, sin perder legibilidad. */
+  .card.cantada{border-color:rgba(29,185,84,.4);}
   /* Por defecto se ve el logo, en vez de un icono genérico o el cuadro
      vacío; el JS le pone background-size:cover encima en cuanto encuentra
      una carátula real, para que la foto llene el cuadro. */
@@ -179,6 +181,8 @@
   .who{font-size:1.05rem; margin-top:4px;}
   .who b{color:var(--accent2); font-size:1.15rem;}
   .time{color:var(--muted); font-size:.7rem; margin-top:2px;}
+  .tiempos{display:flex; flex-wrap:wrap; gap:2px 10px; margin-top:4px; font-size:.7rem; color:var(--muted);}
+  .tiempos span{white-space:nowrap;}
   .actions{display:flex; flex-direction:column; gap:6px; flex-shrink:0; width:118px;}
   .actions button{
     border:none; border-radius:8px; padding:8px 10px; font-size:.75rem; font-weight:700; cursor:pointer; white-space:nowrap;
@@ -619,7 +623,13 @@
           <div class="title">${escapeHtml(s.Titulo)}</div>
           <div class="artist">${escapeHtml(s.Artista)}</div>
           <div class="who">🙋 <b>${escapeHtml(s.Solicitante)}</b></div>
-          <div class="time">${formatHora(s.Timestamp)}</div>
+          ${s.Estado === 'Cantada' && s.FechaCantada ? `
+            <div class="tiempos">
+              <span>🕐 Solicitada: ${formatHora(s.Timestamp)}</span>
+              <span>✔ Cantada: ${formatHora(s.FechaCantada)}</span>
+              <span>⏱ Espera: ${formatEspera(s.Timestamp, s.FechaCantada)}</span>
+            </div>
+          ` : `<div class="time">🕐 Solicitada: ${formatHora(s.Timestamp)}</div>`}
         </div>
         <div class="actions">
           ${s.Estado !== 'Cantada' ? `<button class="btn-ok" data-id="${s.IdSolicitud}" data-action="cantada">Marcar como<br>Cantada</button>` : ''}
@@ -837,6 +847,16 @@
     const d = new Date(ts);
     if (isNaN(d)) return '';
     return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // Tiempo entre que se pidió la canción y se marcó como cantada.
+  function formatEspera(desde, hasta) {
+    const ms = new Date(hasta) - new Date(desde);
+    if (isNaN(ms) || ms < 0) return '—';
+    const totalMin = Math.round(ms / 60000);
+    const horas = Math.floor(totalMin / 60);
+    const min = totalMin % 60;
+    return horas > 0 ? `${horas}h ${min}min` : `${min} min`;
   }
 
   const observadorCaratulas = new IntersectionObserver((entries) => {
