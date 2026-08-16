@@ -99,6 +99,41 @@
     transform:translateY(-50%); font-size:1rem; opacity:.7;
   }
 
+  .orden-toggle-admin{display:flex; gap:8px; max-width:700px; margin:14px auto 0; padding:0 16px;}
+  .orden-toggle-admin button{
+    flex:1; padding:10px 6px; border-radius:12px; border:1px solid var(--card-border);
+    background:var(--card); color:var(--muted); font-weight:600; font-size:.82rem; cursor:pointer;
+  }
+  .orden-toggle-admin button.active{background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#141414; border-color:transparent;}
+
+  .letra-grid{display:grid; grid-template-columns:repeat(6, 1fr); gap:8px; padding:4px 0 10px;}
+  .letra-btn{
+    padding:14px 0; border-radius:10px; border:1px solid var(--card-border);
+    background:var(--card); color:var(--text); font-weight:700; font-size:1rem; cursor:pointer;
+  }
+  .letra-btn:active{transform:scale(.95); border-color:var(--accent2);}
+
+  .volver-letras{
+    display:block; width:100%; margin-bottom:6px; padding:11px; border-radius:12px;
+    border:1px solid var(--card-border); background:transparent; color:var(--accent2);
+    font-weight:600; font-size:.85rem; cursor:pointer;
+  }
+
+  .favoritos-controles{display:flex; gap:8px; max-width:700px; margin:14px auto 0; padding:0 16px;}
+  .favoritos-controles select{
+    flex:1; padding:11px 13px; border-radius:12px; border:1px solid var(--card-border);
+    background:var(--card); color:var(--text); font-size:.85rem; font-weight:600; outline:none;
+  }
+  .favoritos-controles button{
+    flex-shrink:0; width:46px; border-radius:12px; border:1px solid var(--card-border);
+    background:var(--card); color:var(--text); cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .favoritos-controles button svg{width:19px; height:19px;}
+  .favoritos-controles button:disabled{opacity:.5; cursor:default;}
+  #btnEliminarSesionFavoritos{color:var(--accent2);}
+  #btnEliminarSesionFavoritos[hidden]{display:none;}
+
   .cover-wrap{position:relative; flex-shrink:0;}
   .btn-refrescar-cover{
     position:absolute; bottom:-4px; right:-4px;
@@ -279,12 +314,26 @@
     <button type="button" class="manual-add-toggle" id="toggleCatalogo">🎶 Añadir canción</button>
     <button type="button" class="manual-add-toggle" id="toggleExcel">📊 Importar Excel</button>
   </div>
+  <div class="orden-toggle-admin">
+    <button type="button" data-orden="ARTISTA">🎤 Cantante / Grupo (A-Z)</button>
+    <button type="button" data-orden="TITULO">🎶 Título canción (A-Z)</button>
+  </div>
   <div class="search-box-admin">
     <input type="text" id="catalogoBuscador" placeholder="Busca por título o artista..." autocomplete="off">
   </div>
 </div>
 
-<div class="seccion-tab" data-seccion="favoritos" style="display:none"></div>
+<div class="seccion-tab" data-seccion="favoritos" style="display:none">
+  <div class="favoritos-controles">
+    <select id="sesionFavoritosSelect"></select>
+    <button type="button" id="btnDescargarFavoritos" title="Descargar Excel de esta sesión" aria-label="Descargar Excel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+    </button>
+    <button type="button" id="btnEliminarSesionFavoritos" title="Eliminar esta sesión" aria-label="Eliminar sesión">
+      <svg id="iconoEliminarSesion" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+    </button>
+  </div>
+</div>
 
 <div class="dialog-overlay" id="overlayManual">
   <div class="dialog-card">
@@ -396,6 +445,10 @@
   let imagenSeleccionadaManual = '';
   let filtro = 'pendientes';
   let tabPrincipal = 'peticiones';
+  let modoOrdenCatalogo = null; // null | 'ARTISTA' | 'TITULO'
+  let letraSeleccionadaCatalogo = null; // null | 'A'..'Z' | '#'
+  // '' = sesión activa (fecha actual del evento) | '__TODAS__' | una fecha concreta
+  let sesionFavoritosActual = '';
   const cacheCaratulas = {};
   const listEl = document.getElementById('list');
 
@@ -412,7 +465,7 @@
     try {
       const [resSol, resFav] = await Promise.all([
         fetch(`${CONFIG.API_URL}?action=solicitudes&_=${Date.now()}`),
-        fetch(`${CONFIG.API_URL}?action=favoritos&_=${Date.now()}`)
+        fetch(`${CONFIG.API_URL}?action=favoritos&sesion=${encodeURIComponent(sesionFavoritosActual)}&_=${Date.now()}`)
       ]);
       solicitudes = await resSol.json();
       const datosFav = await resFav.json();
@@ -453,6 +506,16 @@
     renderPeticiones(pendientes);
   }
 
+  // Las solicitudes guardan su propia Imagen_URL (la que había en el
+  // catálogo cuando se pidió), pero no una Imagen_Local propia. Si esa
+  // misma canción ya está sincronizada localmente, se prefiere esa ruta
+  // (más rápida) en vez de volver a pedirla a iTunes en directo.
+  function imagenParaSolicitud(s) {
+    const clave = normaliza(`${s.Titulo}|${s.Artista}`);
+    const enCatalogo = catalogoCompleto.find(c => normaliza(`${c.Titulo}|${c.Artista}`) === clave);
+    return (enCatalogo && enCatalogo.Imagen_Local) || s.Imagen_URL || '';
+  }
+
   function renderPeticiones(pendientes) {
     const mostrar = filtro === 'pendientes' ? pendientes : solicitudes;
 
@@ -463,7 +526,7 @@
 
     listEl.innerHTML = mostrar.map((s, i) => `
       <div class="card ${s.Estado === 'Cantada' ? 'cantada' : ''}">
-        <div class="cover" id="cover-${i}" data-artista="${escapeAttr(s.Artista)}" data-titulo="${escapeAttr(s.Titulo)}" data-imagen="${escapeAttr(s.Imagen_URL || '')}"></div>
+        <div class="cover" id="cover-${i}" data-artista="${escapeAttr(s.Artista)}" data-titulo="${escapeAttr(s.Titulo)}" data-imagen="${escapeAttr(imagenParaSolicitud(s))}"></div>
         <div class="info">
           <div class="title">${escapeHtml(s.Titulo)}</div>
           <div class="artist">${escapeHtml(s.Artista)}</div>
@@ -508,29 +571,147 @@
     listEl.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
   }
 
+  const MESES_CORTOS_ADMIN = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+  function formatoSesionCorto(str) {
+    const p = parseFechaEvento(str);
+    if (!p) return str;
+    return `${p.dia} ${MESES_CORTOS_ADMIN[p.mes - 1]} ${p.anio}`;
+  }
+
+  // Fecha real de la sesión activa, resuelta a partir de Config (para
+  // saber a qué sesión concreta corresponde cuando el selector está en
+  // "" = sesión activa).
+  let sesionActivaResuelta = '(sin fecha)';
+
+  // Rellena el selector de sesiones: la activa (fecha actual del evento)
+  // arriba del todo, luego las sesiones anteriores encontradas en la hoja
+  // de Favoritos, y al final la opción de verlas todas juntas.
+  async function cargarSesionesFavoritos() {
+    let sesiones = [];
+    if (!MODO_LOCAL) {
+      try {
+        const res = await fetch(`${CONFIG.API_URL}?action=sesiones_favoritos&_=${Date.now()}`);
+        const datos = await res.json();
+        sesiones = Array.isArray(datos) ? datos : [];
+      } catch (e) { sesiones = []; }
+    }
+    const cfg = await leerConfigEvento();
+    sesionActivaResuelta = cfg.Fecha || '(sin fecha)';
+    const otras = sesiones.filter(s => s !== sesionActivaResuelta);
+
+    const opciones = [`<option value="">Sesión activa (${escapeHtml(formatoSesionCorto(sesionActivaResuelta))})</option>`]
+      .concat(otras.map(s => `<option value="${escapeAttr(s)}">${escapeHtml(formatoSesionCorto(s))}</option>`))
+      .concat([`<option value="__TODAS__">Todas las sesiones</option>`]);
+
+    const valorPrevio = sesionFavoritosSelect.value;
+    sesionFavoritosSelect.innerHTML = opciones.join('');
+    if ([...sesionFavoritosSelect.options].some(o => o.value === valorPrevio)) {
+      sesionFavoritosSelect.value = valorPrevio;
+    }
+    actualizarBotonEliminarSesion();
+  }
+
+  // La sesión "real" a la que corresponde la selección actual del <select>
+  // ('' se resuelve a la fecha activa de verdad).
+  function sesionResuelta() {
+    return sesionFavoritosActual === '' ? sesionActivaResuelta : sesionFavoritosActual;
+  }
+
+  const ICONO_PAPELERA = '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>';
+  const ICONO_REINICIAR = '<path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/>';
+
+  // El botón cambia de icono/texto según lo que va a hacer realmente:
+  // reiniciar (si es la sesión activa), borrar (si es una anterior), o
+  // desaparecer (si se están viendo todas las sesiones a la vez, donde
+  // "borrar" no tiene un único significado claro).
+  function actualizarBotonEliminarSesion() {
+    if (sesionFavoritosActual === '__TODAS__') {
+      btnEliminarSesionFavoritos.hidden = true;
+      return;
+    }
+    btnEliminarSesionFavoritos.hidden = false;
+    const esActiva = sesionFavoritosActual === '';
+    iconoEliminarSesion.innerHTML = esActiva ? ICONO_REINICIAR : ICONO_PAPELERA;
+    btnEliminarSesionFavoritos.title = esActiva
+      ? 'Reiniciar los favoritos de la sesión activa'
+      : 'Eliminar esta sesión';
+  }
+
+  function campoOrdenCatalogo(c) {
+    return modoOrdenCatalogo === 'TITULO' ? c.Titulo : (c.Artista || c.Titulo);
+  }
+
+  function primeraLetra(str) {
+    const limpio = normaliza(str);
+    if (!limpio) return '#';
+    const primerCaracter = limpio.trim()[0] || '#';
+    return /[a-z]/.test(primerCaracter) ? primerCaracter.toUpperCase() : '#';
+  }
+
+  function renderSelectorLetrasCatalogo() {
+    const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').concat(['#']);
+    listEl.innerHTML = `<div class="letra-grid">${letras.map(l => `<button class="letra-btn" data-letra="${l}">${l}</button>`).join('')}</div>`;
+    listEl.querySelectorAll('.letra-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        letraSeleccionadaCatalogo = btn.dataset.letra;
+        render();
+      });
+    });
+  }
+
+  function enlazarVolverLetrasCatalogo() {
+    const btn = document.getElementById('volverLetrasCatalogo');
+    if (btn) btn.addEventListener('click', () => { letraSeleccionadaCatalogo = null; render(); });
+  }
+
   // Buscador del catálogo completo (mismo criterio que el buscador del
-  // index): permite encontrar cualquier canción para editarla o refrescar
-  // su carátula, sin volcar de golpe las 1200+ canciones del repertorio.
+  // index, incluyendo la exploración A-Z por cantante o título): permite
+  // encontrar cualquier canción para editarla o refrescar su carátula, sin
+  // volcar de golpe las 1200+ canciones del repertorio.
   function renderCatalogo() {
     const q = normaliza(catalogoBuscador.value.trim());
-    if (!q) {
-      listEl.innerHTML = '<div class="empty">👆 Escribe el título o el artista de una canción del repertorio para buscarla</div>';
+
+    if (!q && !modoOrdenCatalogo) {
+      listEl.innerHTML = '<div class="empty">👆 Escribe el título o el artista de una canción, o elige "Cantante / Grupo" o "Título canción" para explorar por letras</div>';
       return;
     }
 
-    const resultados = catalogoCompleto
-      .filter(c => normaliza(c.Titulo).includes(q) || normaliza(c.Artista).includes(q))
-      .slice(0, 40);
+    if (!q && modoOrdenCatalogo && !letraSeleccionadaCatalogo) {
+      renderSelectorLetrasCatalogo();
+      return;
+    }
+
+    let resultados = catalogoCompleto.filter(c => !q || normaliza(c.Titulo).includes(q) || normaliza(c.Artista).includes(q));
+
+    if (modoOrdenCatalogo === 'ARTISTA') {
+      resultados = resultados.slice().sort((a, b) => {
+        const claveA = normaliza(a.Artista) || normaliza(a.Titulo);
+        const claveB = normaliza(b.Artista) || normaliza(b.Titulo);
+        return claveA.localeCompare(claveB);
+      });
+    } else if (modoOrdenCatalogo === 'TITULO') {
+      resultados = resultados.slice().sort((a, b) => normaliza(a.Titulo).localeCompare(normaliza(b.Titulo)));
+    }
+
+    const volver = (!q && modoOrdenCatalogo) ? '<button class="volver-letras" id="volverLetrasCatalogo">← Elegir otra letra</button>' : '';
+
+    if (!q && modoOrdenCatalogo && letraSeleccionadaCatalogo) {
+      resultados = resultados.filter(c => primeraLetra(campoOrdenCatalogo(c)) === letraSeleccionadaCatalogo);
+    } else if (!modoOrdenCatalogo) {
+      resultados = resultados.slice(0, 40);
+    }
 
     if (resultados.length === 0) {
-      listEl.innerHTML = '<div class="empty">No hay ninguna canción que coincida 🤷</div>';
+      listEl.innerHTML = volver + '<div class="empty">No hay ninguna canción que coincida 🤷</div>';
+      if (volver) enlazarVolverLetrasCatalogo();
       return;
     }
 
-    listEl.innerHTML = resultados.map((c, i) => `
+    listEl.innerHTML = volver + resultados.map((c, i) => `
       <div class="card">
         <div class="cover-wrap">
-          <div class="cover" id="cover-${i}" data-artista="${escapeAttr(c.Artista)}" data-titulo="${escapeAttr(c.Titulo)}" data-imagen="${escapeAttr(c.Imagen_URL || '')}"></div>
+          <div class="cover" id="cover-${i}" data-artista="${escapeAttr(c.Artista)}" data-titulo="${escapeAttr(c.Titulo)}" data-imagen="${escapeAttr(c.Imagen_Local || c.Imagen_URL || '')}"></div>
           <button type="button" class="btn-refrescar-cover" data-idx="${i}" title="Actualizar carátula" aria-label="Actualizar carátula">🔄</button>
         </div>
         <div class="info">
@@ -552,6 +733,8 @@
     listEl.querySelectorAll('.btn-refrescar-cover').forEach(btn => {
       btn.addEventListener('click', () => refrescarCaratula(resultados[+btn.dataset.idx], btn));
     });
+
+    if (volver) enlazarVolverLetrasCatalogo();
   }
 
   function escapeHtml(str) {
@@ -687,11 +870,105 @@
       document.querySelectorAll('.seccion-tab').forEach(sec => {
         sec.style.display = sec.dataset.seccion === tabPrincipal ? '' : 'none';
       });
+      if (tabPrincipal === 'favoritos') cargarSesionesFavoritos();
       render();
     });
   });
 
   catalogoBuscador.addEventListener('input', () => render());
+
+  // --- Sesiones de favoritos: selector, descarga de Excel y eliminar/reiniciar ---
+  const sesionFavoritosSelect = document.getElementById('sesionFavoritosSelect');
+  const btnDescargarFavoritos = document.getElementById('btnDescargarFavoritos');
+  const btnEliminarSesionFavoritos = document.getElementById('btnEliminarSesionFavoritos');
+  const iconoEliminarSesion = document.getElementById('iconoEliminarSesion');
+
+  sesionFavoritosSelect.addEventListener('change', () => {
+    sesionFavoritosActual = sesionFavoritosSelect.value;
+    actualizarBotonEliminarSesion();
+    cargar();
+  });
+
+  btnDescargarFavoritos.addEventListener('click', async () => {
+    if (MODO_LOCAL) {
+      alert('La descarga de Excel necesita el backend en directo (no funciona en modo local).');
+      return;
+    }
+    btnDescargarFavoritos.disabled = true;
+    try {
+      const res = await fetch(`${CONFIG.API_URL}?action=favoritos_export&_=${Date.now()}`);
+      const datos = await res.json();
+      if (!Array.isArray(datos)) { alert('No se pudo leer la lista de favoritos.'); return; }
+
+      const todas = sesionFavoritosActual === '__TODAS__';
+      const filtrados = todas ? datos : datos.filter(d => d.Sesion === sesionResuelta());
+
+      if (filtrados.length === 0) {
+        alert('No hay ningún favorito guardado en esta sesión.');
+        return;
+      }
+      const filas = filtrados.map(d => ({
+        Sesion: formatoSesionCorto(d.Sesion), Titulo: d.Titulo, Artista: d.Artista, 'Veces marcada': d.Contador
+      }));
+      const hoja = XLSX.utils.json_to_sheet(filas);
+      const libro = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(libro, hoja, 'Favoritos');
+      const nombre = todas ? 'favoritos_todas_las_sesiones.xlsx' : `favoritos_${formatoSesionCorto(sesionResuelta()).replace(/\s+/g, '-')}.xlsx`;
+      XLSX.writeFile(libro, nombre);
+    } catch (e) {
+      alert('No se pudo generar el Excel. Inténtalo de nuevo.');
+    } finally {
+      btnDescargarFavoritos.disabled = false;
+    }
+  });
+
+  btnEliminarSesionFavoritos.addEventListener('click', async () => {
+    if (MODO_LOCAL) {
+      alert('Esto necesita el backend en directo (no funciona en modo local).');
+      return;
+    }
+    const esActiva = sesionFavoritosActual === '';
+    const etiqueta = formatoSesionCorto(sesionResuelta());
+    const confirmado = esActiva
+      ? confirm(`¿Reiniciar los favoritos de la sesión activa (${etiqueta})? Se pondrán todos a cero.`)
+      : confirm(`¿Eliminar todos los favoritos de la sesión ${etiqueta}? Esta acción no se puede deshacer.`);
+    if (!confirmado) return;
+
+    btnEliminarSesionFavoritos.disabled = true;
+    try {
+      await fetch(CONFIG.API_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify({ action: 'eliminar_sesion_favoritos', sesion: sesionFavoritosActual })
+      });
+      if (!esActiva) {
+        sesionFavoritosActual = '';
+        sesionFavoritosSelect.value = '';
+      }
+      await cargarSesionesFavoritos();
+      await cargar();
+    } catch (e) {
+      alert('No se pudo completar la operación. Inténtalo de nuevo.');
+    } finally {
+      btnEliminarSesionFavoritos.disabled = false;
+    }
+  });
+
+  document.querySelectorAll('.orden-toggle-admin button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const yaActivo = btn.classList.contains('active');
+      document.querySelectorAll('.orden-toggle-admin button').forEach(b => b.classList.remove('active'));
+      letraSeleccionadaCatalogo = null;
+      catalogoBuscador.value = '';
+      if (yaActivo) {
+        modoOrdenCatalogo = null;
+      } else {
+        btn.classList.add('active');
+        modoOrdenCatalogo = btn.dataset.orden;
+      }
+      render();
+    });
+  });
 
   const toggleManual = document.getElementById('toggleManual');
   const overlayManual = document.getElementById('overlayManual');
@@ -943,7 +1220,7 @@
     editArtista.value = c.Artista || '';
     editIdioma.value = c.Idioma === 'EXT' ? 'EXT' : 'ES';
     editCategoria.value = c.Categoria === 'Infantil' ? 'Infantil' : 'General';
-    imagenEdicionActual = c.Imagen_URL || '';
+    imagenEdicionActual = c.Imagen_Local || c.Imagen_URL || '';
     actualizarPreviewCoverEdicion();
     overlayEditarCatalogo.classList.add('open');
   }
@@ -1035,6 +1312,11 @@
     const idioma = editIdioma.value;
     const categoria = editCategoria.value;
     const imagenUrl = imagenEdicionActual;
+    // Si la carátula que se va a guardar es la misma que ya había en local
+    // (no se tocó el botón de recargar), se conserva esa ruta local; si es
+    // distinta (se pidió una nueva a iTunes), se limpia — ya no correspondería
+    // a la imagen descargada — hasta la próxima sincronización.
+    const imagenLocal = (imagenUrl === cancionEnEdicion.Imagen_Local) ? cancionEnEdicion.Imagen_Local : '';
     if (!titulo) { editTitulo.focus(); return; }
     if (!artista) { editArtista.focus(); return; }
 
@@ -1053,7 +1335,7 @@
           alert('En modo local solo se pueden editar canciones añadidas desde este panel.');
           return;
         }
-        extra[idx] = { ...extra[idx], Titulo: titulo, Artista: artista, Idioma: idioma, Categoria: categoria, Imagen_URL: imagenUrl, Enlace_Letra: enlaceLetra };
+        extra[idx] = { ...extra[idx], Titulo: titulo, Artista: artista, Idioma: idioma, Categoria: categoria, Imagen_URL: imagenUrl, Imagen_Local: imagenLocal, Enlace_Letra: enlaceLetra };
         localStorage.setItem(LS_CATALOGO_EXTRA, JSON.stringify(extra));
       } else {
         await fetch(CONFIG.API_URL, {
@@ -1063,11 +1345,11 @@
             action: 'editar_cancion',
             fila: cancionEnEdicion._row,
             titulo, artista, idioma, categoria,
-            imagenUrl, enlaceLetra
+            imagenUrl, imagenLocal, enlaceLetra
           })
         });
       }
-      Object.assign(cancionEnEdicion, { Titulo: titulo, Artista: artista, Idioma: idioma, Categoria: categoria, Imagen_URL: imagenUrl, Enlace_Letra: enlaceLetra });
+      Object.assign(cancionEnEdicion, { Titulo: titulo, Artista: artista, Idioma: idioma, Categoria: categoria, Imagen_URL: imagenUrl, Imagen_Local: imagenLocal, Enlace_Letra: enlaceLetra });
       cerrarDialogoEditarCatalogo();
       render();
       alert(`"${titulo}" actualizada en el repertorio.`);
@@ -1304,6 +1586,7 @@
   cargar();
   cargarCatalogoCompleto();
   cargarResumenEvento();
+  cargarSesionesFavoritos();
   setInterval(cargar, 6000);
 </script>
 </body>

@@ -402,6 +402,10 @@
   let letraSeleccionada = null; // null | 'A'..'Z' | '#'
   let resultadosActuales = [];
   let idxAbierto = null;
+  // Fecha del evento activa ahora mismo (la que puso el admin), para poder
+  // agrupar los favoritos por sesión en vez de mezclar los de eventos
+  // distintos que usen el mismo Sheet.
+  let sesionActual = '';
   const cacheCaratulas = {};
 
   const listEl = document.getElementById('list');
@@ -517,7 +521,7 @@
       return `
       <div class="song-card" data-idx="${i}">
         <div class="song-row">
-          <div class="cover" id="cover-${i}" data-idx="${i}" data-artista="${escapeAttr(c.Artista)}" data-titulo="${escapeAttr(c.Titulo)}" data-imagen="${escapeAttr(c.Imagen_URL || '')}"></div>
+          <div class="cover" id="cover-${i}" data-idx="${i}" data-artista="${escapeAttr(c.Artista)}" data-titulo="${escapeAttr(c.Titulo)}" data-imagen="${escapeAttr(c.Imagen_Local || c.Imagen_URL || '')}"></div>
           <div class="song-right">
             <div class="song-toprow" data-idx="${i}">
               <div class="song-info">
@@ -705,7 +709,7 @@
     fetch(CONFIG.API_URL, {
       method: 'POST',
       mode: 'no-cors',
-      body: JSON.stringify({ action: 'marcar_favorito', titulo: c.Titulo, artista: c.Artista, favorito: nuevoEstado })
+      body: JSON.stringify({ action: 'marcar_favorito', titulo: c.Titulo, artista: c.Artista, favorito: nuevoEstado, sesion: sesionActual })
     });
   }
 
@@ -889,6 +893,8 @@
         cfg = await res.json();
       } catch (e) { /* si falla, simplemente no se muestra nada */ }
     }
+
+    sesionActual = cfg.Fecha || '';
 
     if (cfg.Lugar) {
       document.getElementById('lugarNombre').textContent = cfg.Lugar;
