@@ -32,9 +32,15 @@
     inset:0;
     z-index:-1;
     background-color:var(--bg1);
+    /* Radio fijo en px (no % del "farthest-corner"): con % el tamaño del
+       degradado depende de la proporción ancho/alto de la pantalla, y en
+       un móvil (muy alto y estrecho) el mismo % da un radio enorme, que
+       se ve como una mancha plana con un corte duro en vez de un brillo
+       suave — en PC (pantalla ancha) el mismo cálculo da un radio mucho
+       más discreto. Con un radio en px se ve igual de sutil en ambos. */
     background-image:
-      radial-gradient(circle at 12% -5%, rgba(0,173,255,.35) 0%, rgba(0,173,255,0) 48%),
-      radial-gradient(circle at 105% 105%, rgba(232,130,60,.28) 0%, rgba(232,130,60,0) 55%);
+      radial-gradient(circle 280px at 12% -5%, rgba(0,173,255,.35) 0%, rgba(0,173,255,.08) 55%, rgba(0,173,255,0) 100%),
+      radial-gradient(circle 260px at 105% 105%, rgba(232,130,60,.28) 0%, rgba(232,130,60,.06) 55%, rgba(232,130,60,0) 100%);
     /* En Safari/iOS los elementos "fixed" pueden quedarse un instante
        rezagados durante el gesto de scroll (se ven "arrastrar" un poco
        antes de encajar en su sitio), lo que se nota como una segunda capa
