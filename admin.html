@@ -194,6 +194,8 @@
   .time{color:var(--muted); font-size:.7rem; margin-top:2px;}
   .tiempos{display:flex; flex-wrap:wrap; gap:2px 10px; margin-top:4px; font-size:.7rem; color:var(--muted);}
   .tiempos span{white-space:nowrap;}
+  .tiempos .espera-buena{color:var(--ok); font-weight:700;}
+  .tiempos .espera-mala{color:#ff6b6b; font-weight:700;}
   .actions{display:flex; flex-direction:column; gap:6px; flex-shrink:0; width:118px;}
   .actions button{
     border:none; border-radius:8px; padding:8px 10px; font-size:.75rem; font-weight:700; cursor:pointer; white-space:nowrap;
@@ -697,27 +699,38 @@
       return;
     }
 
-    listEl.innerHTML = mostrar.map((s, i) => `
+    listEl.innerHTML = mostrar.map((s, i) => {
+      let bloqueTiempos;
+      if (s.Estado === 'Cantada' && s.FechaCantada) {
+        const minEspera = minutosEspera(s.Timestamp, s.FechaCantada);
+        const claseEspera = minEspera === null ? '' : (minEspera > 30 ? 'espera-mala' : 'espera-buena');
+        const iconoEspera = minEspera === null ? '⏱' : (minEspera > 30 ? '⚠️' : '👍');
+        bloqueTiempos = `
+            <div class="tiempos">
+              <span>🕐 Solicitada: ${formatHora(s.Timestamp)}</span>
+              <span>✔ Cantada: ${formatHora(s.FechaCantada)}</span>
+              <span class="${claseEspera}">${iconoEspera} Espera: ${formatEspera(s.Timestamp, s.FechaCantada)}</span>
+            </div>
+          `;
+      } else {
+        bloqueTiempos = `<div class="time">🕐 Solicitada: ${formatHora(s.Timestamp)}</div>`;
+      }
+      return `
       <div class="card ${s.Estado === 'Cantada' ? 'cantada' : ''}" data-id="${s.IdSolicitud}">
         <div class="cover" id="cover-${i}" data-artista="${escapeAttr(s.Artista)}" data-titulo="${escapeAttr(s.Titulo)}" data-imagen="${escapeAttr(imagenParaSolicitud(s))}"></div>
         <div class="info">
           <div class="title">${escapeHtml(s.Titulo)}</div>
           <div class="artist">${escapeHtml(s.Artista)}</div>
           <div class="who">🙋 <b>${escapeHtml(s.Solicitante)}</b></div>
-          ${s.Estado === 'Cantada' && s.FechaCantada ? `
-            <div class="tiempos">
-              <span>🕐 Solicitada: ${formatHora(s.Timestamp)}</span>
-              <span>✔ Cantada: ${formatHora(s.FechaCantada)}</span>
-              <span>⏱ Espera: ${formatEspera(s.Timestamp, s.FechaCantada)}</span>
-            </div>
-          ` : `<div class="time">🕐 Solicitada: ${formatHora(s.Timestamp)}</div>`}
+          ${bloqueTiempos}
         </div>
         <div class="actions">
           ${s.Estado !== 'Cantada' ? `<button class="btn-ok" data-id="${s.IdSolicitud}" data-action="cantada">Marcar como<br>Cantada</button>` : ''}
           <button class="btn-del" data-id="${s.IdSolicitud}" data-action="eliminar">🗑 Quitar</button>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     listEl.querySelectorAll('button').forEach(btn => {
       btn.addEventListener('click', () => manejarAccion(btn.dataset.id, btn.dataset.action));
@@ -1140,11 +1153,19 @@
     return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   }
 
+  // Minutos totales entre que se pidió la canción y se marcó como
+  // cantada (null si las fechas no son válidas), para decidir el color y
+  // el icono del apartado "Espera".
+  function minutosEspera(desde, hasta) {
+    const ms = new Date(hasta) - new Date(desde);
+    if (isNaN(ms) || ms < 0) return null;
+    return Math.round(ms / 60000);
+  }
+
   // Tiempo entre que se pidió la canción y se marcó como cantada.
   function formatEspera(desde, hasta) {
-    const ms = new Date(hasta) - new Date(desde);
-    if (isNaN(ms) || ms < 0) return '—';
-    const totalMin = Math.round(ms / 60000);
+    const totalMin = minutosEspera(desde, hasta);
+    if (totalMin === null) return '—';
     const horas = Math.floor(totalMin / 60);
     const min = totalMin % 60;
     return horas > 0 ? `${horas}h ${min}min` : `${min} min`;
