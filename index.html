@@ -199,11 +199,13 @@
     gap:12px;
     padding:10px 12px;
   }
+  /* Por defecto (mientras no se sabe si hay carátula o no se encuentra
+     ninguna) se ve el logo, en vez de dejar el cuadro vacío o un icono
+     genérico. En cuanto se localiza una carátula real, el JS le pone
+     background-size:cover encima para que la foto llene el cuadro. */
   .cover{
     width:52px; height:52px; border-radius:10px; flex-shrink:0;
-    background:#282828 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23b3b3b3"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg>') center/60% no-repeat;
-    background-size:cover;
-    background-position:center;
+    background:#1c1e21 url('logo.png') center/68% no-repeat;
     cursor:pointer;
     transition:width .3s ease, height .3s ease, border-radius .3s ease;
   }
@@ -637,6 +639,7 @@
     const imagenManual = el.dataset.imagen;
     if (imagenManual) {
       el.style.backgroundImage = `url('${imagenManual}')`;
+      el.style.backgroundSize = 'cover';
       return;
     }
     const artista = el.dataset.artista;
@@ -644,6 +647,7 @@
     const key = normaliza(`${artista}|${titulo}`);
     if (cacheCaratulas[key]) {
       el.style.backgroundImage = `url('${cacheCaratulas[key]}')`;
+      el.style.backgroundSize = 'cover';
       return;
     }
     try {
@@ -652,8 +656,9 @@
         const url = data.results[0].artworkUrl100.replace('100x100', '300x300');
         cacheCaratulas[key] = url;
         el.style.backgroundImage = `url('${url}')`;
+        el.style.backgroundSize = 'cover';
       }
-    } catch (e) { /* si falla, se queda el icono genérico */ }
+    } catch (e) { /* si falla, se queda el logo por defecto */ }
   }
 
   // Máximo de búsquedas simultáneas a iTunes, con una pequeña pausa entre
