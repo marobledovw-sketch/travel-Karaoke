@@ -203,18 +203,28 @@
     white-space:normal; text-align:center; line-height:1.25; transition:background .15s, color .15s;
   }
   .btn-ok:hover{background:var(--ok); color:#063820;}
-  .btn-del{background:transparent; color:var(--muted); border:1px solid var(--card-border) !important;}
-
-  /* Botones de sugerencias ("La tengo" / "Para Catalogar"): mismo aspecto
-     neutro para los dos, sin distinguirlos por color; el borde verde solo
-     aparece al pasar el ratón por encima, en el que se tenga debajo. */
-  .btn-tengo, .btn-pendiente{
+  .btn-del{
     background:transparent; color:var(--muted); border:1px solid var(--card-border) !important;
     transition:border-color .15s, color .15s;
   }
-  .btn-tengo:hover, .btn-pendiente:hover{
-    border-color:var(--ok) !important; color:var(--ok);
+  .btn-del:hover{ border-color:#ff6b6b !important; color:#ff6b6b; }
+
+  /* Botones de sugerencias ("La tengo" / "Incluir en catálogo" / "Para
+     Catalogar"): aspecto neutro para los dos, sin distinguirlos por color
+     en reposo; el verde solo aparece al pasar el ratón por encima, en el
+     que se tenga debajo. */
+  .btn-tengo, .btn-pendiente{
+    background:transparent; color:var(--muted); border:1px solid var(--card-border) !important;
+    transition:border-color .15s, color .15s, background .15s;
   }
+  /* "La tengo" / "Incluir en catálogo" van con .btn-ok, cuyo :hover ya
+     rellena de verde sólido; aquí solo hace falta que el texto se quede
+     oscuro (no el verde de más abajo), si no se lee al fundirse con el
+     fondo. */
+  .btn-tengo:hover{ background:var(--ok); border-color:var(--ok) !important; color:#063820; }
+  /* "Para Catalogar" va con .btn-del (sin relleno propio): aquí el verde
+     solo se marca en el borde y el texto, sin rellenar el botón entero. */
+  .btn-pendiente:hover{ border-color:var(--ok) !important; color:var(--ok); }
 
   /* Animación al marcar como cantada: la tarjeta "vuela" hacia arriba y se
      desvanece justo antes de moverse de verdad a la pestaña Cantadas. */
@@ -845,7 +855,7 @@
       }
     } finally {
       btn.disabled = false;
-      btn.textContent = '➕ Incluir en catálogo';
+      btn.innerHTML = '➕ Incluir<br>en catálogo';
     }
   }
 
@@ -1100,7 +1110,7 @@
           <div class="time">🕐 ${formatHora(s.Timestamp)}</div>
         </div>
         <div class="actions">
-          <button class="btn-ok btn-tengo" data-id="${s.IdSugerencia}">➕ Incluir en catálogo</button>
+          <button class="btn-ok btn-tengo" data-id="${s.IdSugerencia}">➕ Incluir<br>en catálogo</button>
           <button class="btn-del" data-id="${s.IdSugerencia}">🗑 Descartar</button>
         </div>
       </div>
