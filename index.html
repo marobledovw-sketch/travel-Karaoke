@@ -50,8 +50,8 @@
   }
   header .header-row{
     display:grid;
-    grid-template-columns:1fr auto 1fr;
-    align-items:center;
+    grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+    align-items:start;
     gap:8px;
     max-width:640px;
     margin:0 auto;
@@ -66,28 +66,41 @@
   header p{margin:2px 0 0; color:var(--muted); font-size:.85rem;}
 
   .evento-lugar{
-    grid-column:1; justify-self:start; text-align:left;
-    color:var(--muted); font-size:.8rem; font-weight:600; line-height:1.25;
-    max-width:120px;
+    grid-column:1; justify-self:center; align-self:stretch;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    text-align:center; max-width:100px;
+  }
+  .lugar-nombre{
+    color:var(--text); font-size:.95rem; font-weight:700; line-height:1.2;
+    /* Nunca partir una palabra a la mitad: si un nombre largo no cabe en
+       una línea, que baje entera a la siguiente, nunca cortada. */
+    white-space:normal; overflow-wrap:normal; word-break:keep-all; hyphens:none;
+  }
+  .lugar-pin{
+    height:70px; width:auto; flex-shrink:0;
   }
   /* Ficha de fecha "estilo calendario moderno": mes arriba en una franja de
-     color y el número de día grande debajo, como un icono de calendario. */
+     color y el número de día grande debajo. Un poco más pequeña que el
+     logo (altura fija, no estirada a toda la fila) pero centrada con las
+     otras dos zonas. */
   .evento-fecha{
-    grid-column:3; justify-self:end;
-    width:52px; border-radius:10px; overflow:hidden;
+    grid-column:3; justify-self:end; align-self:center;
+    height:115px; aspect-ratio:1/1; max-width:100%;
+    border-radius:12px; overflow:hidden;
     border:1px solid var(--card-border);
     box-shadow:0 4px 10px rgba(0,0,0,.3);
+    display:flex; flex-direction:column;
   }
   .evento-fecha .fecha-mes{
-    display:block; text-align:center;
+    display:block; text-align:center; flex-shrink:0;
     background:linear-gradient(90deg,var(--accent),var(--accent2));
-    color:#141414; font-size:.62rem; font-weight:700;
-    letter-spacing:.04em; padding:2px 0;
+    color:#141414; font-size:.85rem; font-weight:700;
+    letter-spacing:.04em; padding:6% 0;
   }
   .evento-fecha .fecha-dia{
-    display:block; text-align:center;
+    flex:1; display:flex; align-items:center; justify-content:center;
     background:var(--card); color:var(--text);
-    font-size:1.3rem; font-weight:700; padding:2px 0 4px;
+    font-size:2.8rem; font-weight:700;
   }
 
   .controls{
@@ -305,7 +318,31 @@
 
 <header>
   <div class="header-row">
-    <div class="evento-lugar" id="eventoLugar"></div>
+    <div class="evento-lugar" id="eventoLugar" style="display:none">
+      <svg class="lugar-pin" viewBox="0 0 100 150" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="pinGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#5FB4D6"/>
+            <stop offset="100%" stop-color="#D99A66"/>
+          </linearGradient>
+          <radialGradient id="pinBrillo" cx="32%" cy="24%" r="55%">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity=".5"/>
+            <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="pinSombra" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#000" flood-opacity=".4"/>
+          </filter>
+        </defs>
+        <ellipse cx="50" cy="139" rx="20" ry="5" fill="#000" opacity=".28"/>
+        <g filter="url(#pinSombra)">
+          <path d="M50 0C22.4 0 0 22.4 0 50c0 37.5 50 90 50 90s50-52.5 50-90C100 22.4 77.6 0 50 0z" fill="url(#pinGrad)" opacity=".82"/>
+          <path d="M50 0C22.4 0 0 22.4 0 50c0 37.5 50 90 50 90s50-52.5 50-90C100 22.4 77.6 0 50 0z" fill="url(#pinBrillo)"/>
+        </g>
+        <circle cx="50" cy="50" r="20" fill="#1c1e21" opacity=".92"/>
+        <circle cx="50" cy="50" r="20" fill="none" stroke="#000" stroke-opacity=".25"/>
+      </svg>
+      <span class="lugar-nombre" id="lugarNombre"></span>
+    </div>
     <img class="logo" src="logo.png" alt="Travel Karaoke">
     <div class="evento-fecha" id="eventoFecha" style="display:none">
       <span class="fecha-mes" id="fechaMes"></span>
@@ -802,19 +839,33 @@
       } catch (e) { /* si falla, simplemente no se muestra nada */ }
     }
 
-    const lugarEl = document.getElementById('eventoLugar');
-    if (cfg.Lugar) lugarEl.textContent = '📍 ' + cfg.Lugar;
-
-    if (cfg.Fecha) {
-      // Fecha llega como 'YYYY-MM-DD'; se construye en local (no UTC) para
-      // que no se desplace un día según la zona horaria del navegador.
-      const [anio, mes, dia] = cfg.Fecha.split('-').map(Number);
-      if (anio && mes && dia) {
-        document.getElementById('fechaMes').textContent = MESES_CORTOS[mes - 1];
-        document.getElementById('fechaDia').textContent = dia;
-        document.getElementById('eventoFecha').style.display = '';
-      }
+    if (cfg.Lugar) {
+      document.getElementById('lugarNombre').textContent = cfg.Lugar;
+      document.getElementById('eventoLugar').style.display = '';
     }
+
+    const partes = parseFechaEvento(cfg.Fecha);
+    if (partes) {
+      document.getElementById('fechaMes').textContent = MESES_CORTOS[partes.mes - 1];
+      document.getElementById('fechaDia').textContent = partes.dia;
+      document.getElementById('eventoFecha').style.display = '';
+    }
+  }
+
+  // Admite tanto 'YYYY-MM-DD' como el formato con hora que a veces devuelve
+  // Google Sheets si la celda se guardó como fecha en vez de texto (p.ej.
+  // "2026-08-19T22:00:00.000Z"): en ese caso se usa la fecha local del
+  // navegador (asumiendo misma zona horaria que el evento) en vez de
+  // partir el string a lo bruto, para no desplazar el día.
+  function parseFechaEvento(str) {
+    if (!str) return null;
+    const soloFecha = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str);
+    if (soloFecha) {
+      return { anio: +soloFecha[1], mes: +soloFecha[2], dia: +soloFecha[3] };
+    }
+    const d = new Date(str);
+    if (isNaN(d)) return null;
+    return { anio: d.getFullYear(), mes: d.getMonth() + 1, dia: d.getDate() };
   }
 
   cargarCatalogo();
