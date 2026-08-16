@@ -362,6 +362,48 @@
   }
   .gate-card button:disabled{opacity:.6;}
   .gate-error{color:#ff8080; font-size:.85rem; margin:0;}
+
+  .sugerir-toggle{
+    display:block; width:100%; margin-top:8px; padding:11px;
+    border-radius:12px; border:1px dashed var(--card-border);
+    background:transparent; color:var(--accent2); font-weight:600;
+    font-size:.82rem; cursor:pointer;
+  }
+
+  /* Diálogo de sugerir canción: mismo lenguaje visual que el bloqueo de
+     sesión (overlay a pantalla completa, tarjeta centrada), pero este sí
+     se puede cerrar. */
+  .dialog-overlay-idx{
+    position:fixed; inset:0; background:rgba(0,0,0,.65);
+    z-index:900; display:none; align-items:flex-end; justify-content:center;
+    backdrop-filter:blur(2px);
+  }
+  .dialog-overlay-idx.open{display:flex;}
+  .dialog-card-idx{
+    position:relative; width:100%; max-width:640px;
+    background:var(--bg1); border:1px solid var(--card-border);
+    border-top-left-radius:20px; border-top-right-radius:20px;
+    box-sizing:border-box; padding:20px;
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .dialog-title-idx{font-weight:700; font-size:1.05rem; margin:0 40px 0 0;}
+  .dialog-nota-idx{color:var(--muted); font-size:.8rem; line-height:1.4; margin:0;}
+  .dialog-close-idx{
+    position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:50%;
+    border:1px solid var(--card-border); background:var(--card); color:var(--text);
+    font-size:1rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .dialog-card-idx input{
+    width:100%; padding:12px 14px; border-radius:12px; box-sizing:border-box;
+    border:1px solid var(--card-border); background:var(--card); color:var(--text);
+    font-size:.95rem; outline:none;
+  }
+  .dialog-card-idx input:focus{border-color:var(--accent2);}
+  .dialog-card-idx > button:last-child{
+    padding:12px; border-radius:12px; border:none; font-weight:700; font-size:.95rem; cursor:pointer;
+    background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#141414;
+  }
+  .dialog-card-idx > button:disabled{opacity:.6;}
 </style>
 </head>
 <body>
@@ -426,6 +468,7 @@
   <div class="search-box">
     <input id="searchInput" type="text" placeholder="Busca por cantante, título o palabra clave...">
   </div>
+  <button type="button" class="sugerir-toggle" id="btnAbrirSugerencia">💡 ¿No encuentras tu canción? Sugiérela</button>
 </div>
 
 <p class="count" id="count"></p>
@@ -435,6 +478,18 @@
 
 <div class="toast" id="toast">¡Petición enviada! 🎉</div>
 
+<div class="dialog-overlay-idx" id="overlaySugerencia">
+  <div class="dialog-card-idx">
+    <button type="button" class="dialog-close-idx" id="cerrarSugerencia" aria-label="Cerrar">✕</button>
+    <p class="dialog-title-idx">Sugiere una canción</p>
+    <p class="dialog-nota-idx">Si no encuentras la canción que buscas en el listado, sugiérenosla aquí. El equipo la revisará y, si está disponible, la añadirá al repertorio para ti.</p>
+    <input type="text" id="sugTituloInput" placeholder="Título de la canción" maxlength="80" autocomplete="off">
+    <input type="text" id="sugArtistaInput" placeholder="Cantante / grupo" maxlength="60" autocomplete="off">
+    <input type="text" id="sugNombreInput" placeholder="Tu nombre" maxlength="40" autocomplete="off">
+    <button type="button" id="btnEnviarSugerencia">Enviar sugerencia 💡</button>
+  </div>
+</div>
+
 <script src="catalogo_data.js"></script>
 <script>
   // ⚠️ CONFIGURACIÓN: cuando tengas tu Google Apps Script desplegado, pega
@@ -442,13 +497,14 @@
   // en MODO LOCAL: usa el catálogo embebido (catalogo_data.js) y guarda las
   // peticiones en este mismo navegador (localStorage), sin necesitar internet.
   const CONFIG = {
-    API_URL: 'https://script.google.com/macros/s/AKfycbzgv_26xNBL5mdqi5CP14UxNgAzHe3ZEbCaMTDdQr7KHzs4zMrsBs8C1-9QszwjKTd7/exec'
+    API_URL: 'https://script.google.com/macros/s/AKfycbxV-h10v0DMxi7FbuHpaD8uiWHSm0x74c5iyb8sXkgV2GgkeRlJUHU4vRkhIgn0tfo6/exec'
   };
   const MODO_LOCAL = !CONFIG.API_URL || CONFIG.API_URL.includes('PEGA_AQUI');
   const LS_KEY = 'karaoke_solicitudes_local';
   const LS_CATALOGO_EXTRA = 'karaoke_catalogo_extra';
   const LS_CONFIG = 'karaoke_config_local';
   const LS_FAVORITOS = 'karaoke_favoritos_local';
+  const LS_SUGERENCIAS = 'karaoke_sugerencias_local';
   const LS_SESION_DESBLOQUEADA = 'karaoke_sesion_desbloqueada';
 
   let catalogo = [];
@@ -1061,6 +1117,65 @@
 
   btnGateEntrar.addEventListener('click', intentarEntrar);
   gateClaveInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') intentarEntrar(); });
+
+  // --- Sugerir una canción que no está en el catálogo ---
+  const overlaySugerencia = document.getElementById('overlaySugerencia');
+  const sugTituloInput = document.getElementById('sugTituloInput');
+  const sugArtistaInput = document.getElementById('sugArtistaInput');
+  const sugNombreInput = document.getElementById('sugNombreInput');
+  const btnEnviarSugerencia = document.getElementById('btnEnviarSugerencia');
+
+  function abrirDialogoSugerencia() {
+    overlaySugerencia.classList.add('open');
+    setTimeout(() => sugTituloInput.focus(), 50);
+  }
+  function cerrarDialogoSugerencia() {
+    overlaySugerencia.classList.remove('open');
+  }
+
+  document.getElementById('btnAbrirSugerencia').addEventListener('click', abrirDialogoSugerencia);
+  document.getElementById('cerrarSugerencia').addEventListener('click', cerrarDialogoSugerencia);
+  overlaySugerencia.addEventListener('click', (e) => { if (e.target === overlaySugerencia) cerrarDialogoSugerencia(); });
+
+  btnEnviarSugerencia.addEventListener('click', async () => {
+    const titulo = sugTituloInput.value.trim();
+    const artista = sugArtistaInput.value.trim();
+    const solicitante = sugNombreInput.value.trim();
+    if (!titulo) { sugTituloInput.focus(); return; }
+    if (!solicitante) { sugNombreInput.focus(); return; }
+
+    btnEnviarSugerencia.disabled = true;
+    btnEnviarSugerencia.textContent = 'Enviando…';
+    try {
+      if (MODO_LOCAL) {
+        const lista = JSON.parse(localStorage.getItem(LS_SUGERENCIAS) || '[]');
+        lista.push({
+          IdSugerencia: Date.now() + '-' + Math.floor(Math.random() * 10000),
+          Timestamp: new Date().toISOString(),
+          Titulo: titulo, Artista: artista, Solicitante: solicitante, Estado: 'Pendiente'
+        });
+        localStorage.setItem(LS_SUGERENCIAS, JSON.stringify(lista));
+      } else {
+        await fetch(CONFIG.API_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify({ action: 'nueva_sugerencia', titulo, artista, solicitante })
+        });
+      }
+      sugTituloInput.value = '';
+      sugArtistaInput.value = '';
+      sugNombreInput.value = '';
+      cerrarDialogoSugerencia();
+      toast.textContent = '¡Sugerencia enviada! 💡';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
+    } catch (e) {
+      alert('No se pudo enviar la sugerencia. Inténtalo de nuevo.');
+    } finally {
+      btnEnviarSugerencia.disabled = false;
+      btnEnviarSugerencia.textContent = 'Enviar sugerencia 💡';
+    }
+  });
 
   comprobarClaveSesion();
 </script>

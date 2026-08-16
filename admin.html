@@ -67,9 +67,9 @@
   }
   header p{margin:4px 0 0; color:var(--muted); font-size:.8rem;}
 
-  .tabs-principal{display:flex; gap:8px; max-width:700px; margin:16px auto 0; padding:0 16px;}
+  .tabs-principal{display:flex; flex-wrap:wrap; gap:8px; max-width:700px; margin:16px auto 0; padding:0 16px;}
   .tabs-principal button{
-    flex:1; padding:11px 6px; border-radius:12px; border:1px solid var(--card-border);
+    flex:1; min-width:47%; padding:11px 6px; border-radius:12px; border:1px solid var(--card-border);
     background:var(--bg2); color:var(--muted); font-weight:700; font-size:.8rem; cursor:pointer;
     text-transform:uppercase; letter-spacing:.03em;
     display:flex; align-items:center; justify-content:center; gap:6px;
@@ -330,6 +330,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.5 8.4 2.6 5 6 5c2 0 3.4 1 4.5 2.3C11.6 6 13 5 15 5c3.4 0 5.5 3.4 4 6.7C19.5 16.4 12 21 12 21z"/></svg>
     Favoritos
   </button>
+  <button data-tab="sugeridas">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>
+    Sugeridas
+  </button>
 </div>
 
 <div class="seccion-tab" data-seccion="peticiones">
@@ -367,6 +371,10 @@
       <svg id="iconoEliminarSesion" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
     </button>
   </div>
+</div>
+
+<div class="seccion-tab" data-seccion="sugeridas" style="display:none">
+  <p class="catalogo-add-nota" style="max-width:700px; margin:14px auto 0; padding:0 16px;">Canciones que los usuarios han pedido sugerir porque no las encontraron en el catálogo. "La tengo" la añade al repertorio y crea ya la petición a su nombre; "Pendiente" la deja aquí para revisarla más adelante.</p>
 </div>
 
 <div class="dialog-overlay" id="overlayManual">
@@ -480,16 +488,18 @@
   // las peticiones guardadas en este mismo navegador por index.html (útil
   // para probar la app en un solo ordenador antes de desplegar el backend).
   const CONFIG = {
-    API_URL: 'https://script.google.com/macros/s/AKfycbzgv_26xNBL5mdqi5CP14UxNgAzHe3ZEbCaMTDdQr7KHzs4zMrsBs8C1-9QszwjKTd7/exec'
+    API_URL: 'https://script.google.com/macros/s/AKfycbxV-h10v0DMxi7FbuHpaD8uiWHSm0x74c5iyb8sXkgV2GgkeRlJUHU4vRkhIgn0tfo6/exec'
   };
   const MODO_LOCAL = !CONFIG.API_URL || CONFIG.API_URL.includes('PEGA_AQUI');
   const LS_KEY = 'karaoke_solicitudes_local';
   const LS_CATALOGO_EXTRA = 'karaoke_catalogo_extra';
+  const LS_SUGERENCIAS_LOCAL = 'karaoke_sugerencias_local';
   const LS_CLAVE_ADMIN = 'karaoke_admin_clave';
   let claveAdminActual = localStorage.getItem(LS_CLAVE_ADMIN) || '';
 
   let solicitudes = [];
   let favoritos = [];
+  let sugerencias = [];
   let catalogoCompleto = [];
   let imagenSeleccionadaManual = '';
   let filtro = 'pendientes';
@@ -539,21 +549,25 @@
   async function cargar() {
     if (MODO_LOCAL) {
       solicitudes = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+      sugerencias = JSON.parse(localStorage.getItem(LS_SUGERENCIAS_LOCAL) || '[]');
       render();
       return;
     }
     try {
-      const [resSol, resFav] = await Promise.all([
+      const [resSol, resFav, resSug] = await Promise.all([
         fetch(`${CONFIG.API_URL}?action=solicitudes&_=${Date.now()}`),
-        fetch(`${CONFIG.API_URL}?action=favoritos&sesion=${encodeURIComponent(sesionFavoritosActual)}&_=${Date.now()}`)
+        fetch(`${CONFIG.API_URL}?action=favoritos&sesion=${encodeURIComponent(sesionFavoritosActual)}&_=${Date.now()}`),
+        fetch(`${CONFIG.API_URL}?action=sugerencias&_=${Date.now()}`)
       ]);
       solicitudes = await resSol.json();
       const datosFav = await resFav.json();
-      // Si el Apps Script en directo todavía no tiene la acción "favoritos"
+      const datosSug = await resSug.json();
+      // Si el Apps Script en directo todavía no tiene alguna acción nueva
       // desplegada (falta la "Nueva versión"), devuelve un objeto de error
-      // en vez de una lista: se trata como "sin favoritos todavía" en vez
-      // de romper el render.
+      // en vez de una lista: se trata como "vacío todavía" en vez de romper
+      // el render.
       favoritos = Array.isArray(datosFav) ? datosFav : [];
+      sugerencias = Array.isArray(datosSug) ? datosSug : [];
       render();
     } catch (e) {
       listEl.innerHTML = '<div class="empty">No se pudo conectar. Revisa la URL de configuración.</div>';
@@ -583,6 +597,7 @@
 
     if (tabPrincipal === 'favoritos') { renderFavoritos(); return; }
     if (tabPrincipal === 'catalogo') { renderCatalogo(); return; }
+    if (tabPrincipal === 'sugeridas') { renderSugerencias(); return; }
     renderPeticiones(pendientes);
   }
 
@@ -667,6 +682,78 @@
     `).join('');
 
     listEl.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
+  }
+
+  function renderSugerencias() {
+    if (sugerencias.length === 0) {
+      listEl.innerHTML = '<div class="empty">No hay canciones sugeridas pendientes 💡</div>';
+      return;
+    }
+
+    listEl.innerHTML = sugerencias.map((s, i) => `
+      <div class="card">
+        <div class="cover" id="cover-${i}" data-artista="${escapeAttr(s.Artista)}" data-titulo="${escapeAttr(s.Titulo)}" data-imagen=""></div>
+        <div class="info">
+          <div class="title">${escapeHtml(s.Titulo)}</div>
+          <div class="artist">${escapeHtml(s.Artista)}</div>
+          <div class="who">🙋 <b>${escapeHtml(s.Solicitante)}</b></div>
+          <div class="time">🕐 ${formatHora(s.Timestamp)}</div>
+        </div>
+        <div class="actions">
+          <button class="btn-ok btn-tengo" data-id="${s.IdSugerencia}">✅ La tengo</button>
+          <button class="btn-del btn-pendiente" data-id="${s.IdSugerencia}">⏳ Pendiente</button>
+        </div>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
+
+    listEl.querySelectorAll('.btn-tengo').forEach(btn => {
+      btn.addEventListener('click', () => resolverSugerenciaConTengo(sugerencias.find(s => String(s.IdSugerencia) === btn.dataset.id), btn));
+    });
+    listEl.querySelectorAll('.btn-pendiente').forEach(btn => {
+      btn.addEventListener('click', () => {
+        btn.textContent = '📌 Anotada';
+        setTimeout(() => { btn.textContent = '⏳ Pendiente'; }, 1200);
+      });
+    });
+  }
+
+  async function resolverSugerenciaConTengo(sugerencia, btn) {
+    if (!sugerencia) return;
+    if (MODO_LOCAL) {
+      alert('Esto necesita el backend en directo (no funciona en modo local).');
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Añadiendo…';
+    try {
+      let imagenFinal = '';
+      try {
+        const data = await buscarEnItunesConCola(`${sugerencia.Artista} ${sugerencia.Titulo}`);
+        if (data && data.results && data.results[0] && data.results[0].artworkUrl100) {
+          imagenFinal = data.results[0].artworkUrl100.replace('100x100', '300x300');
+        }
+      } catch (e) { /* sin carátula si falla, se buscará más tarde */ }
+
+      const enlaceLetra = `https://genius.com/search?q=${encodeURIComponent(sugerencia.Artista + ' ' + sugerencia.Titulo)}`;
+      await llamarAdminAPI('resolver_sugerencia', {
+        idSugerencia: sugerencia.IdSugerencia,
+        titulo: sugerencia.Titulo, artista: sugerencia.Artista, solicitante: sugerencia.Solicitante,
+        imagenUrl: imagenFinal, enlaceLetra
+      });
+      sugerencias = sugerencias.filter(s => String(s.IdSugerencia) !== String(sugerencia.IdSugerencia));
+      cargarCatalogoCompleto();
+      render();
+      alert(`"${sugerencia.Titulo}" añadida al repertorio y ya en la lista de peticiones.`);
+    } catch (e) {
+      if (e.message !== 'cancelado' && e.message !== 'clave_incorrecta') {
+        alert('No se pudo completar. Inténtalo de nuevo.');
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '✅ La tengo';
+    }
   }
 
   const MESES_CORTOS_ADMIN = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
