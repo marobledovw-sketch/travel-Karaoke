@@ -35,6 +35,14 @@
     background-image:
       radial-gradient(circle at 12% -5%, rgba(0,173,255,.35) 0%, rgba(0,173,255,0) 48%),
       radial-gradient(circle at 105% 105%, rgba(232,130,60,.28) 0%, rgba(232,130,60,0) 55%);
+    /* En Safari/iOS los elementos "fixed" pueden quedarse un instante
+       rezagados durante el gesto de scroll (se ven "arrastrar" un poco
+       antes de encajar en su sitio), lo que se nota como una segunda capa
+       de fondo. Forzar su propia capa de composición (GPU) con translateZ
+       hace que se quede fijo de verdad, sin ese retraso visual. */
+    transform:translateZ(0);
+    -webkit-transform:translateZ(0);
+    will-change:transform;
   }
   header{
     padding:18px 16px 6px;
