@@ -523,7 +523,7 @@
   // las peticiones guardadas en este mismo navegador por index.html (útil
   // para probar la app en un solo ordenador antes de desplegar el backend).
   const CONFIG = {
-    API_URL: 'https://script.google.com/macros/s/AKfycbyxoir_PuwqFYw6s8esZPS0J035tsWI1c73_q8JTtErj3_aTasM62uJtE7m8gr5w-sd/exec'
+    API_URL: 'https://script.google.com/macros/s/AKfycbzpwLGnSaJhb42fOuGPnTy0rRfqtCub51LVu2eYp2RQTstINf95hxBXWbW_yTtP7Dp5/exec'
   };
   const MODO_LOCAL = !CONFIG.API_URL || CONFIG.API_URL.includes('PEGA_AQUI');
   const LS_KEY = 'karaoke_solicitudes_local';
@@ -808,10 +808,11 @@
     }
   }
 
-  // "La tengo" desde Catálogo > Para Catalogar: mismo comportamiento que desde
-  // Sugeridas (añade al catálogo y crea la petición), pero quitando la
-  // tarjeta de la lista de pendientes y destellando "Peticiones".
-  async function resolverPendienteConTengo(sugerencia, btn) {
+  // "Incluir en catálogo" desde Catálogo > Para Catalogar: a diferencia de
+  // "La tengo" en Sugeridas, aquí NO se crea petición — si está en Para
+  // Catalogar es porque en su momento no se pudo cantar y se añade en
+  // frío otro día, así que no tiene sentido que aparezca en Peticiones.
+  async function incluirEnCatalogoPendiente(sugerencia, btn) {
     if (!sugerencia) return;
     if (MODO_LOCAL) {
       alert('Esto necesita el backend en directo (no funciona en modo local).');
@@ -832,20 +833,19 @@
       await llamarAdminAPI('resolver_sugerencia', {
         idSugerencia: sugerencia.IdSugerencia,
         titulo: sugerencia.Titulo, artista: sugerencia.Artista, solicitante: sugerencia.Solicitante,
-        imagenUrl: imagenFinal, enlaceLetra
+        imagenUrl: imagenFinal, enlaceLetra, crearPeticion: false
       });
       sugerenciasPendientes = sugerenciasPendientes.filter(s => String(s.IdSugerencia) !== String(sugerencia.IdSugerencia));
       cargarCatalogoCompleto();
       render();
-      destellarTabPrincipal('peticiones');
-      alert(`"${sugerencia.Titulo}" añadida al repertorio y ya en la lista de peticiones.`);
+      alert(`"${sugerencia.Titulo}" añadida al repertorio.`);
     } catch (e) {
       if (e.message !== 'cancelado' && e.message !== 'clave_incorrecta') {
         alert('No se pudo completar. Inténtalo de nuevo.');
       }
     } finally {
       btn.disabled = false;
-      btn.textContent = '✅ La tengo';
+      btn.textContent = '➕ Incluir en catálogo';
     }
   }
 
@@ -1100,7 +1100,7 @@
           <div class="time">🕐 ${formatHora(s.Timestamp)}</div>
         </div>
         <div class="actions">
-          <button class="btn-ok btn-tengo" data-id="${s.IdSugerencia}">✅ La tengo</button>
+          <button class="btn-ok btn-tengo" data-id="${s.IdSugerencia}">➕ Incluir en catálogo</button>
           <button class="btn-del" data-id="${s.IdSugerencia}">🗑 Descartar</button>
         </div>
       </div>
@@ -1109,7 +1109,7 @@
     listEl.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
 
     listEl.querySelectorAll('.btn-tengo').forEach(btn => {
-      btn.addEventListener('click', () => resolverPendienteConTengo(sugerenciasPendientes.find(s => String(s.IdSugerencia) === btn.dataset.id), btn));
+      btn.addEventListener('click', () => incluirEnCatalogoPendiente(sugerenciasPendientes.find(s => String(s.IdSugerencia) === btn.dataset.id), btn));
     });
     listEl.querySelectorAll('.btn-del').forEach(btn => {
       btn.addEventListener('click', () => descartarPendiente(sugerenciasPendientes.find(s => String(s.IdSugerencia) === btn.dataset.id), btn));
