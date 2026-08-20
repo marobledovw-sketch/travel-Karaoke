@@ -420,6 +420,32 @@
     box-shadow:0 4px 14px rgba(0,0,0,.3);
   }
 
+  /* Botón para ver el orden de actuación (cola de canciones pendientes,
+     igual que la ve el admin, pero sin datos de horas). */
+  .turno-toggle{
+    display:block; width:100%; margin-top:10px; padding:14px;
+    border-radius:14px; border:2px solid var(--accent2);
+    background:transparent; color:var(--accent2);
+    font-weight:800; font-size:.9rem; letter-spacing:.02em; cursor:pointer;
+  }
+  .turno-toggle:hover{background:var(--accent2); color:#141414;}
+
+  .turno-item{
+    display:flex; align-items:center; gap:10px;
+    background:var(--card); border:1px solid var(--card-border); border-radius:12px; padding:8px 10px;
+  }
+  .turno-item + .turno-item{margin-top:8px;}
+  .turno-numero{
+    flex-shrink:0; width:26px; height:26px; border-radius:50%;
+    background:var(--bg1); border:1px solid var(--card-border); color:var(--muted);
+    font-weight:700; font-size:.78rem; display:flex; align-items:center; justify-content:center;
+  }
+  .turno-item .cover{width:48px; height:48px; cursor:default; flex-shrink:0;}
+  .turno-info{flex:1; min-width:0;}
+  .turno-info .titulo{font-weight:700; font-size:.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .turno-info .artista{color:var(--muted); font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .turno-info .quien{color:var(--accent2); font-size:.74rem; font-weight:700; margin-top:2px;}
+
   /* Diálogo de sugerir canción: mismo lenguaje visual que el bloqueo de
      sesión (overlay a pantalla completa, tarjeta centrada), pero este sí
      se puede cerrar. Centrado en vez de anclado abajo, para que no quede
@@ -509,6 +535,10 @@
 
 <div id="misPeticionesContenedor"></div>
 
+<div class="turno-toggle-wrap" style="max-width:640px; margin:0 auto; padding:0 16px;">
+  <button type="button" class="turno-toggle" id="btnAbrirTurno">🎤 TURNO DE ACTUACIÓN</button>
+</div>
+
 <div class="controls">
   <div class="orden-toggle">
     <button data-orden="ARTISTA">🎤 Cantante / Grupo (A-Z)</button>
@@ -542,6 +572,24 @@
     <input type="text" id="sugArtistaInput" placeholder="Cantante / grupo" maxlength="60" autocomplete="off">
     <input type="text" id="sugNombreInput" placeholder="Tu nombre" maxlength="40" autocomplete="off">
     <button type="button" id="btnEnviarSugerencia">Enviar sugerencia 💡</button>
+  </div>
+</div>
+
+<div class="dialog-overlay-idx" id="overlayAviso">
+  <div class="dialog-card-idx">
+    <button type="button" class="dialog-close-idx" id="cerrarAviso" aria-label="Cerrar">✕</button>
+    <p class="dialog-title-idx" id="avisoTitulo"></p>
+    <p class="dialog-nota-idx" id="avisoMensaje"></p>
+    <button type="button" id="btnAvisoEntendido">Entendido</button>
+  </div>
+</div>
+
+<div class="dialog-overlay-idx" id="overlayTurno">
+  <div class="dialog-card-idx">
+    <button type="button" class="dialog-close-idx" id="cerrarTurno" aria-label="Cerrar">✕</button>
+    <p class="dialog-title-idx">🎤 Turno de actuación</p>
+    <p class="dialog-nota-idx">Este es el orden en el que se van a cantar las canciones.</p>
+    <div id="turnoLista"></div>
   </div>
 </div>
 
@@ -991,6 +1039,19 @@
     }
   }
 
+  // Antes de pedirla, se comprueba si esa misma canción (por título y
+  // artista) ya está en la cola sin cantar todavía — así no se acumulan
+  // peticiones repetidas de la misma canción.
+  async function cancionYaSolicitada(cancion) {
+    const clave = normaliza(`${cancion.Titulo}|${cancion.Artista}`);
+    try {
+      const lista = await solicitudesEnDirecto();
+      return lista.some(s => s.Estado !== 'Cantada' && normaliza(`${s.Titulo}|${s.Artista}`) === clave);
+    } catch (e) {
+      return false; // si falla la comprobación (sin red), no se bloquea por eso
+    }
+  }
+
   async function enviarDesdeTarjeta(i, btn) {
     const cancion = resultadosActuales[i];
     const details = document.getElementById(`details-${i}`);
@@ -998,12 +1059,23 @@
     const nombre = input.value.trim();
     if (!nombre) { input.focus(); return; }
 
+    btn.disabled = true;
+    btn.textContent = 'Comprobando…';
+    if (await cancionYaSolicitada(cancion)) {
+      btn.disabled = false;
+      btn.textContent = 'Enviar petición 🎶';
+      mostrarAviso(
+        'Esta canción ya está solicitada 🎤',
+        'Alguien ya la ha pedido y todavía no se ha cantado. Vuelve a solicitarla cuando se haya cantado y escuchado en el karaoke.'
+      );
+      return;
+    }
+
     // Se genera aquí, antes de enviarla, para poder rastrear esta misma
     // petición en "Tus solicitudes" (y poder anularla) sin depender de
     // leer la respuesta del servidor (los POST van con mode:'no-cors').
     const idSolicitud = Date.now() + '-' + Math.floor(Math.random() * 10000);
 
-    btn.disabled = true;
     btn.textContent = 'Enviando…';
     try {
       if (MODO_LOCAL) {
@@ -1423,6 +1495,71 @@
       btnEnviarSugerencia.textContent = 'Enviar sugerencia 💡';
     }
   });
+
+  // --- Aviso genérico centrado (p.ej. canción ya solicitada) ---
+  const overlayAviso = document.getElementById('overlayAviso');
+  const avisoTitulo = document.getElementById('avisoTitulo');
+  const avisoMensaje = document.getElementById('avisoMensaje');
+
+  function mostrarAviso(titulo, mensaje) {
+    avisoTitulo.textContent = titulo;
+    avisoMensaje.textContent = mensaje;
+    overlayAviso.classList.add('open');
+  }
+  function cerrarAviso() {
+    overlayAviso.classList.remove('open');
+  }
+  document.getElementById('cerrarAviso').addEventListener('click', cerrarAviso);
+  document.getElementById('btnAvisoEntendido').addEventListener('click', cerrarAviso);
+  overlayAviso.addEventListener('click', (e) => { if (e.target === overlayAviso) cerrarAviso(); });
+
+  // --- Turno de actuación: la misma cola que ve el admin, sin horas ---
+  const overlayTurno = document.getElementById('overlayTurno');
+  const turnoLista = document.getElementById('turnoLista');
+
+  async function solicitudesEnDirecto() {
+    if (MODO_LOCAL) {
+      const lista = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+      return Array.isArray(lista) ? lista : [];
+    }
+    const res = await fetch(`${CONFIG.API_URL}?action=solicitudes&_=${Date.now()}`);
+    const lista = await res.json();
+    return Array.isArray(lista) ? lista : [];
+  }
+
+  async function abrirTurnoActuacion() {
+    overlayTurno.classList.add('open');
+    turnoLista.innerHTML = '<div class="loading">Cargando…</div>';
+    let cola;
+    try {
+      cola = (await solicitudesEnDirecto()).filter(s => s.Estado !== 'Cantada');
+    } catch (e) {
+      turnoLista.innerHTML = '<div class="empty">No se pudo cargar. Comprueba tu conexión.</div>';
+      return;
+    }
+    if (cola.length === 0) {
+      turnoLista.innerHTML = '<div class="empty">No hay ninguna canción en cola ahora mismo 🎤</div>';
+      return;
+    }
+    turnoLista.innerHTML = cola.map((s, i) => `
+      <div class="turno-item">
+        <span class="turno-numero">${i + 1}</span>
+        <div class="cover" data-artista="${escapeAttr(s.Artista)}" data-titulo="${escapeAttr(s.Titulo)}" data-imagen="${escapeAttr(imagenParaMiPeticion(s))}"></div>
+        <div class="turno-info">
+          <div class="titulo">${escapeHtml(s.Titulo)}</div>
+          <div class="artista">${escapeHtml(s.Artista)}</div>
+          <div class="quien">🙋 ${escapeHtml(s.Solicitante)}</div>
+        </div>
+      </div>
+    `).join('');
+    turnoLista.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
+  }
+  function cerrarTurno() {
+    overlayTurno.classList.remove('open');
+  }
+  document.getElementById('btnAbrirTurno').addEventListener('click', abrirTurnoActuacion);
+  document.getElementById('cerrarTurno').addEventListener('click', cerrarTurno);
+  overlayTurno.addEventListener('click', (e) => { if (e.target === overlayTurno) cerrarTurno(); });
 
   comprobarClaveSesion();
 </script>

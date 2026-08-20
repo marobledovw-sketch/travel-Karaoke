@@ -200,6 +200,14 @@
   .actions button{
     border:none; border-radius:8px; padding:8px 10px; font-size:.75rem; font-weight:700; cursor:pointer; white-space:nowrap;
   }
+  /* Subir/bajar una petición en la cola de pendientes, por si el orden de
+     llegada no encaja bien (dos canciones parecidas seguidas, etc). */
+  .orden-mover{display:flex; gap:6px;}
+  .orden-mover .btn-mover{
+    flex:1; padding:6px 0; border-radius:8px; border:1px solid var(--card-border) !important;
+    background:var(--card); color:var(--text); font-size:.8rem; cursor:pointer; transition:border-color .15s, color .15s;
+  }
+  .orden-mover .btn-mover:hover{border-color:var(--accent2) !important; color:var(--accent2);}
   .btn-ok{
     background:transparent; color:var(--ok); border:2px solid var(--ok) !important;
     white-space:normal; text-align:center; line-height:1.25; transition:background .15s, color .15s;
@@ -725,6 +733,12 @@
           ${bloqueTiempos}
         </div>
         <div class="actions">
+          ${filtro === 'pendientes' ? `
+            <div class="orden-mover">
+              <button class="btn-mover" data-id="${s.IdSolicitud}" data-action="subir" title="Subir en la cola" aria-label="Subir en la cola">▲</button>
+              <button class="btn-mover" data-id="${s.IdSolicitud}" data-action="bajar" title="Bajar en la cola" aria-label="Bajar en la cola">▼</button>
+            </div>
+          ` : ''}
           ${s.Estado !== 'Cantada' ? `<button class="btn-ok" data-id="${s.IdSolicitud}" data-action="cantada">Marcar como<br>Cantada</button>` : ''}
           <button class="btn-del" data-id="${s.IdSolicitud}" data-action="eliminar">🗑 Quitar</button>
         </div>
@@ -1271,7 +1285,33 @@
     setTimeout(() => btn.classList.remove('destello'), 900);
   }
 
+  // Intercambia dos pendientes en el array local 'solicitudes' (respeta
+  // las cantadas, que no participan en la cola), para el modo local.
+  function moverSolicitudLocal(id, direccion) {
+    const pendientes = solicitudes.filter(s => s.Estado !== 'Cantada');
+    const idx = pendientes.findIndex(s => String(s.IdSolicitud) === String(id));
+    if (idx === -1) return;
+    const destino = direccion === 'subir' ? idx - 1 : idx + 1;
+    if (destino < 0 || destino >= pendientes.length) return;
+    const a = pendientes[idx], b = pendientes[destino];
+    const iA = solicitudes.indexOf(a), iB = solicitudes.indexOf(b);
+    [solicitudes[iA], solicitudes[iB]] = [solicitudes[iB], solicitudes[iA]];
+    localStorage.setItem(LS_KEY, JSON.stringify(solicitudes));
+  }
+
   async function manejarAccion(id, accion) {
+    if (accion === 'subir' || accion === 'bajar') {
+      if (MODO_LOCAL) {
+        moverSolicitudLocal(id, accion);
+        render();
+        return;
+      }
+      try {
+        await llamarAdminAPI('mover_solicitud', { idSolicitud: id, direccion: accion });
+      } catch (e) { /* contraseña cancelada o incorrecta: no se hace nada más */ }
+      await cargar();
+      return;
+    }
     if (accion === 'cantada') {
       // Antes de tocar los datos: la tarjeta "vuela" hacia arriba y se
       // desvanece, para que se note que se ha movido a otra pestaña en
