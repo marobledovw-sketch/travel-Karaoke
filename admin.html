@@ -202,10 +202,13 @@
   }
   /* Subir/bajar una petición en la cola de pendientes, por si el orden de
      llegada no encaja bien (dos canciones parecidas seguidas, etc). */
-  .orden-mover{display:flex; gap:6px;}
+  /* En vertical y junto a la carátula (no dentro de .actions), para que
+     la tarjeta no crezca de alto por tener un botón más. */
+  .orden-mover{display:flex; flex-direction:column; gap:4px; flex-shrink:0; height:56px;}
   .orden-mover .btn-mover{
-    flex:1; padding:6px 0; border-radius:8px; border:1px solid var(--card-border) !important;
-    background:var(--card); color:var(--text); font-size:.8rem; cursor:pointer; transition:border-color .15s, color .15s;
+    flex:1; width:26px; padding:0; border-radius:8px; border:1px solid var(--card-border) !important;
+    background:var(--card); color:var(--text); font-size:.7rem; cursor:pointer; transition:border-color .15s, color .15s;
+    display:flex; align-items:center; justify-content:center;
   }
   .orden-mover .btn-mover:hover{border-color:var(--accent2) !important; color:var(--accent2);}
   .btn-ok{
@@ -725,6 +728,12 @@
       }
       return `
       <div class="card ${s.Estado === 'Cantada' ? 'cantada' : ''}" data-id="${s.IdSolicitud}">
+        ${filtro === 'pendientes' ? `
+          <div class="orden-mover">
+            <button class="btn-mover" data-id="${s.IdSolicitud}" data-action="subir" title="Subir en la cola" aria-label="Subir en la cola">▲</button>
+            <button class="btn-mover" data-id="${s.IdSolicitud}" data-action="bajar" title="Bajar en la cola" aria-label="Bajar en la cola">▼</button>
+          </div>
+        ` : ''}
         <div class="cover" id="cover-${i}" data-artista="${escapeAttr(s.Artista)}" data-titulo="${escapeAttr(s.Titulo)}" data-imagen="${escapeAttr(imagenParaSolicitud(s))}"></div>
         <div class="info">
           <div class="title">${escapeHtml(s.Titulo)}</div>
@@ -733,12 +742,6 @@
           ${bloqueTiempos}
         </div>
         <div class="actions">
-          ${filtro === 'pendientes' ? `
-            <div class="orden-mover">
-              <button class="btn-mover" data-id="${s.IdSolicitud}" data-action="subir" title="Subir en la cola" aria-label="Subir en la cola">▲</button>
-              <button class="btn-mover" data-id="${s.IdSolicitud}" data-action="bajar" title="Bajar en la cola" aria-label="Bajar en la cola">▼</button>
-            </div>
-          ` : ''}
           ${s.Estado !== 'Cantada' ? `<button class="btn-ok" data-id="${s.IdSolicitud}" data-action="cantada">Marcar como<br>Cantada</button>` : ''}
           <button class="btn-del" data-id="${s.IdSolicitud}" data-action="eliminar">🗑 Quitar</button>
         </div>
