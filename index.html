@@ -335,50 +335,53 @@
   .loading{text-align:center; padding:40px; color:var(--muted);}
 
   /* Sección "Tus solicitudes": aparece sola en cuanto el usuario pide su
-     primera canción, justo arriba del todo, para que vea de un vistazo
-     qué ha pedido sin tener que buscarlo. Se puede colapsar (queda solo
-     la cabecera con el contador) pero nunca desaparece del todo mientras
-     tenga alguna solicitud sin resolver. */
-  .mis-peticiones{max-width:640px; margin:14px auto 0; padding:0 16px;}
+     primera canción, justo arriba del todo, para que la vea de un vistazo
+     sin tener que buscarla. Late en verde para que se note bien. Si pide
+     alguna canción a nombre de otra persona (p.ej. un amigo), se abre una
+     caja nueva independiente para ese nombre, debajo de la primera. En
+     cuanto el admin marca una canción como cantada, esa tarjeta se quita
+     sola de aquí (no hace falta que el usuario haga nada). */
+  .mis-peticiones{max-width:640px; margin:12px auto 0; padding:0 16px;}
+  .mis-peticiones-caja{
+    border-radius:16px; border:1px solid var(--card-border); background:var(--card);
+    overflow:hidden; animation:latidoMisPeticiones 2s ease-in-out infinite;
+  }
+  @keyframes latidoMisPeticiones{
+    0%, 100% { box-shadow:0 0 0 0 rgba(29,185,84,.5); }
+    50% { box-shadow:0 0 0 6px rgba(29,185,84,0); }
+  }
   .mis-peticiones-cabecera{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
-    background:var(--card); border:1px solid var(--card-border); border-radius:14px;
-    padding:12px 14px; cursor:pointer;
+    padding:13px 14px; cursor:pointer;
   }
-  .mis-peticiones-titulo{font-weight:700; font-size:.9rem; display:flex; align-items:center; gap:8px;}
-  .mis-peticiones-titulo .contador{
-    background:var(--accent2); color:#141414; border-radius:999px;
-    padding:1px 8px; font-size:.75rem; font-weight:700;
+  .mis-peticiones-titulo{
+    font-weight:800; font-size:.82rem; text-transform:uppercase; letter-spacing:.03em;
+    display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; min-width:0;
   }
+  .mis-peticiones-nombre{color:var(--accent2); font-weight:800;}
   .mis-peticiones-toggle{
     background:none; border:none; color:var(--muted); font-size:1rem; cursor:pointer;
     transition:transform .2s; flex-shrink:0;
   }
-  .mis-peticiones.colapsada .mis-peticiones-toggle{transform:rotate(-90deg);}
-  .mis-peticiones.colapsada .mis-peticiones-cuerpo{display:none;}
-  .mis-peticiones-cuerpo{
-    background:var(--card); border:1px solid var(--card-border); border-top:none;
-    border-radius:0 0 14px 14px; padding:10px 14px 14px; margin-top:-1px;
-  }
-  .mis-peticiones-nota{color:var(--muted); font-size:.78rem; line-height:1.4; margin:0 0 10px;}
+  .mis-peticiones-caja.colapsada .mis-peticiones-toggle{transform:rotate(-90deg);}
+  .mis-peticiones-caja.colapsada .mis-peticiones-cuerpo{display:none;}
+  .mis-peticiones-cuerpo{padding:0 14px 14px; display:flex; flex-direction:column; gap:8px;}
   .mis-peticiones-item{
-    display:flex; align-items:center; gap:10px; padding:10px 0;
-    border-top:1px solid var(--card-border);
+    display:flex; align-items:center; gap:10px;
+    background:var(--bg1); border:1px solid var(--card-border); border-radius:12px; padding:8px 10px;
   }
-  .mis-peticiones-item:first-child{border-top:none; padding-top:0;}
+  .mis-peticiones-item .cover{width:52px; height:52px; cursor:default;}
   .mis-peticiones-info{flex:1; min-width:0;}
-  .mis-peticiones-info .titulo{font-weight:700; font-size:.92rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .mis-peticiones-info .artista{color:var(--muted); font-size:.8rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .mis-peticiones-estado{font-size:.72rem; font-weight:700; margin-top:3px;}
-  .mis-peticiones-estado.pendiente{color:var(--accent2);}
-  .mis-peticiones-estado.cantada{color:#1db954;}
-  .btn-anular-peticion, .btn-quitar-peticion{
-    flex-shrink:0; padding:8px 12px; border-radius:10px;
-    font-weight:700; font-size:.75rem; cursor:pointer; transition:background .15s, color .15s;
+  .mis-peticiones-info .titulo{font-weight:700; font-size:.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .mis-peticiones-info .artista{color:var(--muted); font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .mis-peticiones-info .estado{color:var(--accent2); font-size:.7rem; font-weight:700; margin-top:2px;}
+  .btn-anular-peticion{
+    flex-shrink:0; padding:7px 11px; border-radius:10px; border:1px solid #ff6b6b;
+    background:transparent; color:#ff6b6b; font-weight:700; font-size:.72rem; cursor:pointer;
+    transition:background .15s, color .15s;
   }
-  .btn-anular-peticion{background:transparent; color:#ff6b6b; border:1px solid #ff6b6b;}
   .btn-anular-peticion:hover{background:#ff6b6b; color:#2a0a0a;}
-  .btn-quitar-peticion{background:transparent; color:var(--muted); border:1px solid var(--card-border);}
+  .mis-peticiones-nota{color:var(--muted); font-size:.72rem; line-height:1.4; margin:10px 0 0;}
 
   /* Bloqueo de acceso: si el admin puso una contraseña de sesión, no se
      deja ver ni usar el listado hasta introducirla (una vez, se recuerda
@@ -504,16 +507,7 @@
   <p>Busca tu canción y pide tu turno</p>
 </header>
 
-<div class="mis-peticiones" id="misPeticionesSeccion" style="display:none">
-  <div class="mis-peticiones-cabecera" id="misPeticionesCabecera">
-    <span class="mis-peticiones-titulo">🎤 Tus solicitudes <span class="contador" id="misPeticionesContador">0</span></span>
-    <button type="button" class="mis-peticiones-toggle" id="btnColapsarMisPeticiones" aria-label="Mostrar u ocultar">▾</button>
-  </div>
-  <div class="mis-peticiones-cuerpo">
-    <p class="mis-peticiones-nota">El equipo del karaoke se encargará de atenderlas. Mantente atento, te llamaremos por tu nombre cuando te toque cantar.</p>
-    <div id="misPeticionesLista"></div>
-  </div>
-</div>
+<div id="misPeticionesContenedor"></div>
 
 <div class="controls">
   <div class="orden-toggle">
@@ -568,7 +562,8 @@
   const LS_SUGERENCIAS = 'karaoke_sugerencias_local';
   const LS_SESION_DESBLOQUEADA = 'karaoke_sesion_desbloqueada';
   const LS_MIS_PETICIONES = 'karaoke_mis_peticiones';
-  const LS_MIS_PETICIONES_COLAPSADA = 'karaoke_mis_peticiones_colapsada';
+  const LS_MIS_PETICIONES_COLAPSADAS = 'karaoke_mis_peticiones_colapsadas';
+  const LS_ULTIMO_NOMBRE = 'karaoke_ultimo_nombre';
 
   let catalogo = [];
   let filtroCategoria = 'TODAS';
@@ -924,7 +919,16 @@
       if (cover) activarCoverCuadrada(cover);
     }
     const input = details ? details.querySelector('.detail-name-input') : null;
-    if (input) setTimeout(() => input.focus(), 200);
+    if (input) {
+      // Se rellena con el último nombre usado (para no tener que
+      // escribirlo cada vez), pero queda seleccionado y editable por si
+      // esta canción se está pidiendo para otra persona (p.ej. un amigo).
+      if (!input.value) {
+        const ultimoNombre = localStorage.getItem(LS_ULTIMO_NOMBRE) || '';
+        if (ultimoNombre) input.value = ultimoNombre;
+      }
+      setTimeout(() => { input.focus(); input.select(); }, 200);
+    }
   }
 
   // Mientras la carátula está estirada (align-self:stretch) para ocupar el
@@ -1018,6 +1022,7 @@
           })
         });
       }
+      localStorage.setItem(LS_ULTIMO_NOMBRE, nombre);
       agregarMiPeticion({
         IdSolicitud: idSolicitud, Titulo: cancion.Titulo, Artista: cancion.Artista,
         Solicitante: nombre, Timestamp: new Date().toISOString()
@@ -1025,12 +1030,13 @@
       idxAbierto = null;
       cerrarTarjeta(i);
       mostrarToast();
-      // La sección "Tus solicitudes" se despliega y se lleva al usuario
-      // directamente ahí, para que vea de un vistazo lo que acaba de pedir.
-      misPeticionesSeccion.classList.remove('colapsada');
-      localStorage.setItem(LS_MIS_PETICIONES_COLAPSADA, '0');
+      // La caja de "Tus solicitudes" (la de este nombre) se despliega y se
+      // lleva al usuario directamente ahí, para que vea de un vistazo lo
+      // que acaba de pedir.
+      quitarColapsoMiCaja(nombre);
       await renderMisPeticiones();
-      misPeticionesSeccion.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const cajaNueva = [...document.querySelectorAll('.mis-peticiones-caja')].find(c => c.dataset.nombre === nombre.trim());
+      if (cajaNueva) cajaNueva.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) {
       alert('No se pudo enviar la petición. Inténtalo de nuevo.');
     } finally {
@@ -1059,10 +1065,10 @@
   }
 
   // --- "Tus solicitudes": lo que este mismo navegador ha pedido ---
-  const misPeticionesSeccion = document.getElementById('misPeticionesSeccion');
-  const misPeticionesLista = document.getElementById('misPeticionesLista');
-  const misPeticionesContador = document.getElementById('misPeticionesContador');
-  const misPeticionesCabecera = document.getElementById('misPeticionesCabecera');
+  // Agrupadas por nombre: normalmente una sola caja, pero si el usuario
+  // pide alguna canción a nombre de otra persona (un amigo al que le
+  // guarda turno), se abre una caja aparte para ese otro nombre.
+  const misPeticionesContenedor = document.getElementById('misPeticionesContenedor');
 
   function misPeticiones() {
     try { return JSON.parse(localStorage.getItem(LS_MIS_PETICIONES) || '[]'); }
@@ -1083,19 +1089,39 @@
     guardarMisPeticionesLocal(misPeticiones().filter(p => String(p.IdSolicitud) !== String(idSolicitud)));
   }
 
-  // Pinta la sección con lo que este navegador ha pedido, comprobando de
-  // paso contra el backend (o, en modo local, contra el propio almacén
-  // simulado) si cada una sigue pendiente, ya se cantó, o el admin la
-  // quitó de la lista (en cuyo caso se deja de rastrear: ya no hay nada
-  // que anular ni que mostrar).
+  function cajasColapsadas() {
+    try { return JSON.parse(localStorage.getItem(LS_MIS_PETICIONES_COLAPSADAS) || '{}'); }
+    catch (e) { return {}; }
+  }
+
+  function quitarColapsoMiCaja(nombre) {
+    const colapsadas = cajasColapsadas();
+    delete colapsadas[nombre.trim()];
+    localStorage.setItem(LS_MIS_PETICIONES_COLAPSADAS, JSON.stringify(colapsadas));
+  }
+
+  // Busca en el catálogo ya cargado la Imagen_Local de esta canción, para
+  // que la carátula de "Tus solicitudes" cargue tan rápido como las del
+  // listado principal en vez de tener que pedirla a iTunes.
+  function imagenParaMiPeticion(p) {
+    const clave = normaliza(`${p.Titulo}|${p.Artista}`);
+    const enCatalogo = catalogo.find(c => normaliza(`${c.Titulo}|${c.Artista}`) === clave);
+    return (enCatalogo && enCatalogo.Imagen_Local) || '';
+  }
+
+  // Pinta las cajas con lo que este navegador ha pedido (una por nombre
+  // usado), comprobando de paso contra el backend (o, en modo local,
+  // contra el propio almacén simulado) el estado real de cada una: si el
+  // admin ya la marcó como cantada, o si la quitó de la lista él mismo,
+  // se deja de rastrear y desaparece sola de aquí sin que el usuario
+  // tenga que hacer nada.
   async function renderMisPeticiones() {
     let tracked = misPeticiones();
     if (tracked.length === 0) {
-      misPeticionesSeccion.style.display = 'none';
+      misPeticionesContenedor.innerHTML = '';
       return;
     }
 
-    const estados = {};
     try {
       let remotas;
       if (MODO_LOCAL) {
@@ -1105,44 +1131,73 @@
         remotas = await res.json();
       }
       if (Array.isArray(remotas)) {
-        remotas.forEach(r => { estados[String(r.IdSolicitud)] = r.Estado; });
-        const rastreadas = tracked.filter(p => estados.hasOwnProperty(String(p.IdSolicitud)));
+        const pendientesRemotas = new Set(
+          remotas.filter(r => r.Estado !== 'Cantada').map(r => String(r.IdSolicitud))
+        );
+        const rastreadas = tracked.filter(p => pendientesRemotas.has(String(p.IdSolicitud)));
         if (rastreadas.length !== tracked.length) guardarMisPeticionesLocal(rastreadas);
         tracked = rastreadas;
       }
     } catch (e) { /* sin conexión: se muestra con los datos que ya había */ }
 
     if (tracked.length === 0) {
-      misPeticionesSeccion.style.display = 'none';
+      misPeticionesContenedor.innerHTML = '';
       return;
     }
 
-    misPeticionesSeccion.style.display = '';
-    misPeticionesContador.textContent = tracked.length;
+    const colapsadas = cajasColapsadas();
 
-    misPeticionesLista.innerHTML = tracked.map(p => {
-      const cantada = estados[String(p.IdSolicitud)] === 'Cantada';
+    // Un grupo por nombre, en el orden en que se usó cada nombre por
+    // primera vez (así el segundo nombre usado siempre queda debajo).
+    const grupos = [];
+    tracked.forEach(p => {
+      const nombre = (p.Solicitante || '').trim();
+      let grupo = grupos.find(g => g.nombre === nombre);
+      if (!grupo) { grupo = { nombre, items: [] }; grupos.push(grupo); }
+      grupo.items.push(p);
+    });
+
+    misPeticionesContenedor.innerHTML = grupos.map(g => {
+      const colapsada = !!colapsadas[g.nombre];
       return `
-        <div class="mis-peticiones-item">
-          <div class="mis-peticiones-info">
-            <div class="titulo">${escapeHtml(p.Titulo)}</div>
-            <div class="artista">${escapeHtml(p.Artista)}</div>
-            <div class="mis-peticiones-estado ${cantada ? 'cantada' : 'pendiente'}">${cantada ? '🎤 ¡Ya te hemos llamado!' : '⏳ Pendiente de cantar'}</div>
+        <div class="mis-peticiones">
+          <div class="mis-peticiones-caja${colapsada ? ' colapsada' : ''}" data-nombre="${escapeAttr(g.nombre)}">
+            <div class="mis-peticiones-cabecera">
+              <span class="mis-peticiones-titulo">TUS SOLICITUDES <span class="mis-peticiones-nombre">· ${escapeHtml(g.nombre)}</span></span>
+              <button type="button" class="mis-peticiones-toggle" aria-label="Mostrar u ocultar">▾</button>
+            </div>
+            <div class="mis-peticiones-cuerpo">
+              ${g.items.map(p => `
+                <div class="mis-peticiones-item">
+                  <div class="cover" data-artista="${escapeAttr(p.Artista)}" data-titulo="${escapeAttr(p.Titulo)}" data-imagen="${escapeAttr(imagenParaMiPeticion(p))}"></div>
+                  <div class="mis-peticiones-info">
+                    <div class="titulo">${escapeHtml(p.Titulo)}</div>
+                    <div class="artista">${escapeHtml(p.Artista)}</div>
+                    <div class="estado">⏳ Pendiente de cantar</div>
+                  </div>
+                  <button type="button" class="btn-anular-peticion" data-id="${escapeAttr(p.IdSolicitud)}">Anular</button>
+                </div>
+              `).join('')}
+              <p class="mis-peticiones-nota">El equipo del karaoke se encargará de atenderlas. Mantente atento, te llamaremos por tu nombre cuando te toque cantar.</p>
+            </div>
           </div>
-          ${cantada
-            ? `<button type="button" class="btn-quitar-peticion" data-id="${escapeAttr(p.IdSolicitud)}">Quitar</button>`
-            : `<button type="button" class="btn-anular-peticion" data-id="${escapeAttr(p.IdSolicitud)}">Anular</button>`}
         </div>
       `;
     }).join('');
 
-    misPeticionesLista.querySelectorAll('.btn-anular-peticion').forEach(btn => {
+    misPeticionesContenedor.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
+
+    misPeticionesContenedor.querySelectorAll('.btn-anular-peticion').forEach(btn => {
       btn.addEventListener('click', () => anularMiPeticion(btn.dataset.id));
     });
-    misPeticionesLista.querySelectorAll('.btn-quitar-peticion').forEach(btn => {
-      btn.addEventListener('click', () => {
-        quitarMiPeticionLocal(btn.dataset.id);
-        renderMisPeticiones();
+
+    misPeticionesContenedor.querySelectorAll('.mis-peticiones-cabecera').forEach(cab => {
+      cab.addEventListener('click', () => {
+        const caja = cab.closest('.mis-peticiones-caja');
+        const colapsada = caja.classList.toggle('colapsada');
+        const guardadas = cajasColapsadas();
+        if (colapsada) guardadas[caja.dataset.nombre] = true; else delete guardadas[caja.dataset.nombre];
+        localStorage.setItem(LS_MIS_PETICIONES_COLAPSADAS, JSON.stringify(guardadas));
       });
     });
   }
@@ -1165,14 +1220,10 @@
     renderMisPeticiones();
   }
 
-  misPeticionesCabecera.addEventListener('click', () => {
-    const colapsada = misPeticionesSeccion.classList.toggle('colapsada');
-    localStorage.setItem(LS_MIS_PETICIONES_COLAPSADA, colapsada ? '1' : '0');
-  });
-
-  if (localStorage.getItem(LS_MIS_PETICIONES_COLAPSADA) === '1') {
-    misPeticionesSeccion.classList.add('colapsada');
-  }
+  // Se comprueba cada 8s si alguna de las solicitudes rastreadas ya se
+  // cantó o el admin la quitó, para que desaparezca sola de la lista sin
+  // que el usuario tenga que recargar la página.
+  setInterval(() => { if (misPeticiones().length > 0) renderMisPeticiones(); }, 8000);
 
   document.querySelectorAll('.orden-toggle button').forEach(btn => {
     btn.addEventListener('click', () => {
