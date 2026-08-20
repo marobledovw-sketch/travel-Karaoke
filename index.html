@@ -334,6 +334,52 @@
 
   .loading{text-align:center; padding:40px; color:var(--muted);}
 
+  /* Sección "Tus solicitudes": aparece sola en cuanto el usuario pide su
+     primera canción, justo arriba del todo, para que vea de un vistazo
+     qué ha pedido sin tener que buscarlo. Se puede colapsar (queda solo
+     la cabecera con el contador) pero nunca desaparece del todo mientras
+     tenga alguna solicitud sin resolver. */
+  .mis-peticiones{max-width:640px; margin:14px auto 0; padding:0 16px;}
+  .mis-peticiones-cabecera{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--card); border:1px solid var(--card-border); border-radius:14px;
+    padding:12px 14px; cursor:pointer;
+  }
+  .mis-peticiones-titulo{font-weight:700; font-size:.9rem; display:flex; align-items:center; gap:8px;}
+  .mis-peticiones-titulo .contador{
+    background:var(--accent2); color:#141414; border-radius:999px;
+    padding:1px 8px; font-size:.75rem; font-weight:700;
+  }
+  .mis-peticiones-toggle{
+    background:none; border:none; color:var(--muted); font-size:1rem; cursor:pointer;
+    transition:transform .2s; flex-shrink:0;
+  }
+  .mis-peticiones.colapsada .mis-peticiones-toggle{transform:rotate(-90deg);}
+  .mis-peticiones.colapsada .mis-peticiones-cuerpo{display:none;}
+  .mis-peticiones-cuerpo{
+    background:var(--card); border:1px solid var(--card-border); border-top:none;
+    border-radius:0 0 14px 14px; padding:10px 14px 14px; margin-top:-1px;
+  }
+  .mis-peticiones-nota{color:var(--muted); font-size:.78rem; line-height:1.4; margin:0 0 10px;}
+  .mis-peticiones-item{
+    display:flex; align-items:center; gap:10px; padding:10px 0;
+    border-top:1px solid var(--card-border);
+  }
+  .mis-peticiones-item:first-child{border-top:none; padding-top:0;}
+  .mis-peticiones-info{flex:1; min-width:0;}
+  .mis-peticiones-info .titulo{font-weight:700; font-size:.92rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .mis-peticiones-info .artista{color:var(--muted); font-size:.8rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .mis-peticiones-estado{font-size:.72rem; font-weight:700; margin-top:3px;}
+  .mis-peticiones-estado.pendiente{color:var(--accent2);}
+  .mis-peticiones-estado.cantada{color:#1db954;}
+  .btn-anular-peticion, .btn-quitar-peticion{
+    flex-shrink:0; padding:8px 12px; border-radius:10px;
+    font-weight:700; font-size:.75rem; cursor:pointer; transition:background .15s, color .15s;
+  }
+  .btn-anular-peticion{background:transparent; color:#ff6b6b; border:1px solid #ff6b6b;}
+  .btn-anular-peticion:hover{background:#ff6b6b; color:#2a0a0a;}
+  .btn-quitar-peticion{background:transparent; color:var(--muted); border:1px solid var(--card-border);}
+
   /* Bloqueo de acceso: si el admin puso una contraseña de sesión, no se
      deja ver ni usar el listado hasta introducirla (una vez, se recuerda
      en este dispositivo). */
@@ -458,6 +504,17 @@
   <p>Busca tu canción y pide tu turno</p>
 </header>
 
+<div class="mis-peticiones" id="misPeticionesSeccion" style="display:none">
+  <div class="mis-peticiones-cabecera" id="misPeticionesCabecera">
+    <span class="mis-peticiones-titulo">🎤 Tus solicitudes <span class="contador" id="misPeticionesContador">0</span></span>
+    <button type="button" class="mis-peticiones-toggle" id="btnColapsarMisPeticiones" aria-label="Mostrar u ocultar">▾</button>
+  </div>
+  <div class="mis-peticiones-cuerpo">
+    <p class="mis-peticiones-nota">El equipo del karaoke se encargará de atenderlas. Mantente atento, te llamaremos por tu nombre cuando te toque cantar.</p>
+    <div id="misPeticionesLista"></div>
+  </div>
+</div>
+
 <div class="controls">
   <div class="orden-toggle">
     <button data-orden="ARTISTA">🎤 Cantante / Grupo (A-Z)</button>
@@ -510,6 +567,8 @@
   const LS_FAVORITOS = 'karaoke_favoritos_local';
   const LS_SUGERENCIAS = 'karaoke_sugerencias_local';
   const LS_SESION_DESBLOQUEADA = 'karaoke_sesion_desbloqueada';
+  const LS_MIS_PETICIONES = 'karaoke_mis_peticiones';
+  const LS_MIS_PETICIONES_COLAPSADA = 'karaoke_mis_peticiones_colapsada';
 
   let catalogo = [];
   let filtroCategoria = 'TODAS';
@@ -935,17 +994,23 @@
     const nombre = input.value.trim();
     if (!nombre) { input.focus(); return; }
 
+    // Se genera aquí, antes de enviarla, para poder rastrear esta misma
+    // petición en "Tus solicitudes" (y poder anularla) sin depender de
+    // leer la respuesta del servidor (los POST van con mode:'no-cors').
+    const idSolicitud = Date.now() + '-' + Math.floor(Math.random() * 10000);
+
     btn.disabled = true;
     btn.textContent = 'Enviando…';
     try {
       if (MODO_LOCAL) {
-        guardarSolicitudLocal(cancion, nombre);
+        guardarSolicitudLocal(cancion, nombre, idSolicitud);
       } else {
         await fetch(CONFIG.API_URL, {
           method: 'POST',
           mode: 'no-cors',
           body: JSON.stringify({
             action: 'nueva_solicitud',
+            idSolicitud,
             titulo: cancion.Titulo,
             artista: cancion.Artista,
             solicitante: nombre,
@@ -953,9 +1018,19 @@
           })
         });
       }
+      agregarMiPeticion({
+        IdSolicitud: idSolicitud, Titulo: cancion.Titulo, Artista: cancion.Artista,
+        Solicitante: nombre, Timestamp: new Date().toISOString()
+      });
       idxAbierto = null;
       cerrarTarjeta(i);
       mostrarToast();
+      // La sección "Tus solicitudes" se despliega y se lleva al usuario
+      // directamente ahí, para que vea de un vistazo lo que acaba de pedir.
+      misPeticionesSeccion.classList.remove('colapsada');
+      localStorage.setItem(LS_MIS_PETICIONES_COLAPSADA, '0');
+      await renderMisPeticiones();
+      misPeticionesSeccion.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) {
       alert('No se pudo enviar la petición. Inténtalo de nuevo.');
     } finally {
@@ -964,10 +1039,10 @@
     }
   }
 
-  function guardarSolicitudLocal(cancion, nombre) {
+  function guardarSolicitudLocal(cancion, nombre, idSolicitud) {
     const lista = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
     lista.push({
-      IdSolicitud: Date.now() + '-' + Math.floor(Math.random() * 10000),
+      IdSolicitud: idSolicitud,
       Timestamp: new Date().toISOString(),
       Titulo: cancion.Titulo,
       Artista: cancion.Artista,
@@ -981,6 +1056,122 @@
   function mostrarToast() {
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  // --- "Tus solicitudes": lo que este mismo navegador ha pedido ---
+  const misPeticionesSeccion = document.getElementById('misPeticionesSeccion');
+  const misPeticionesLista = document.getElementById('misPeticionesLista');
+  const misPeticionesContador = document.getElementById('misPeticionesContador');
+  const misPeticionesCabecera = document.getElementById('misPeticionesCabecera');
+
+  function misPeticiones() {
+    try { return JSON.parse(localStorage.getItem(LS_MIS_PETICIONES) || '[]'); }
+    catch (e) { return []; }
+  }
+
+  function guardarMisPeticionesLocal(lista) {
+    localStorage.setItem(LS_MIS_PETICIONES, JSON.stringify(lista));
+  }
+
+  function agregarMiPeticion(peticion) {
+    const lista = misPeticiones();
+    lista.push(peticion);
+    guardarMisPeticionesLocal(lista);
+  }
+
+  function quitarMiPeticionLocal(idSolicitud) {
+    guardarMisPeticionesLocal(misPeticiones().filter(p => String(p.IdSolicitud) !== String(idSolicitud)));
+  }
+
+  // Pinta la sección con lo que este navegador ha pedido, comprobando de
+  // paso contra el backend (o, en modo local, contra el propio almacén
+  // simulado) si cada una sigue pendiente, ya se cantó, o el admin la
+  // quitó de la lista (en cuyo caso se deja de rastrear: ya no hay nada
+  // que anular ni que mostrar).
+  async function renderMisPeticiones() {
+    let tracked = misPeticiones();
+    if (tracked.length === 0) {
+      misPeticionesSeccion.style.display = 'none';
+      return;
+    }
+
+    const estados = {};
+    try {
+      let remotas;
+      if (MODO_LOCAL) {
+        remotas = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+      } else {
+        const res = await fetch(`${CONFIG.API_URL}?action=solicitudes&_=${Date.now()}`);
+        remotas = await res.json();
+      }
+      if (Array.isArray(remotas)) {
+        remotas.forEach(r => { estados[String(r.IdSolicitud)] = r.Estado; });
+        const rastreadas = tracked.filter(p => estados.hasOwnProperty(String(p.IdSolicitud)));
+        if (rastreadas.length !== tracked.length) guardarMisPeticionesLocal(rastreadas);
+        tracked = rastreadas;
+      }
+    } catch (e) { /* sin conexión: se muestra con los datos que ya había */ }
+
+    if (tracked.length === 0) {
+      misPeticionesSeccion.style.display = 'none';
+      return;
+    }
+
+    misPeticionesSeccion.style.display = '';
+    misPeticionesContador.textContent = tracked.length;
+
+    misPeticionesLista.innerHTML = tracked.map(p => {
+      const cantada = estados[String(p.IdSolicitud)] === 'Cantada';
+      return `
+        <div class="mis-peticiones-item">
+          <div class="mis-peticiones-info">
+            <div class="titulo">${escapeHtml(p.Titulo)}</div>
+            <div class="artista">${escapeHtml(p.Artista)}</div>
+            <div class="mis-peticiones-estado ${cantada ? 'cantada' : 'pendiente'}">${cantada ? '🎤 ¡Ya te hemos llamado!' : '⏳ Pendiente de cantar'}</div>
+          </div>
+          ${cantada
+            ? `<button type="button" class="btn-quitar-peticion" data-id="${escapeAttr(p.IdSolicitud)}">Quitar</button>`
+            : `<button type="button" class="btn-anular-peticion" data-id="${escapeAttr(p.IdSolicitud)}">Anular</button>`}
+        </div>
+      `;
+    }).join('');
+
+    misPeticionesLista.querySelectorAll('.btn-anular-peticion').forEach(btn => {
+      btn.addEventListener('click', () => anularMiPeticion(btn.dataset.id));
+    });
+    misPeticionesLista.querySelectorAll('.btn-quitar-peticion').forEach(btn => {
+      btn.addEventListener('click', () => {
+        quitarMiPeticionLocal(btn.dataset.id);
+        renderMisPeticiones();
+      });
+    });
+  }
+
+  async function anularMiPeticion(idSolicitud) {
+    if (!confirm('¿Seguro que quieres anular esta petición?')) return;
+    try {
+      if (MODO_LOCAL) {
+        const restantes = JSON.parse(localStorage.getItem(LS_KEY) || '[]').filter(s => String(s.IdSolicitud) !== String(idSolicitud));
+        localStorage.setItem(LS_KEY, JSON.stringify(restantes));
+      } else {
+        await fetch(CONFIG.API_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify({ action: 'anular_solicitud', idSolicitud })
+        });
+      }
+    } catch (e) { /* si falla la conexión, se quita igualmente de esta lista local */ }
+    quitarMiPeticionLocal(idSolicitud);
+    renderMisPeticiones();
+  }
+
+  misPeticionesCabecera.addEventListener('click', () => {
+    const colapsada = misPeticionesSeccion.classList.toggle('colapsada');
+    localStorage.setItem(LS_MIS_PETICIONES_COLAPSADA, colapsada ? '1' : '0');
+  });
+
+  if (localStorage.getItem(LS_MIS_PETICIONES_COLAPSADA) === '1') {
+    misPeticionesSeccion.classList.add('colapsada');
   }
 
   document.querySelectorAll('.orden-toggle button').forEach(btn => {
@@ -1062,6 +1253,7 @@
     cargarCatalogo();
     cargarConfigEvento();
     actualizarBotonFavoritos();
+    renderMisPeticiones();
   }
 
   // Si el admin puso una contraseña de sesión, se pide antes de dejar ver
