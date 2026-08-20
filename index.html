@@ -453,10 +453,11 @@
     0%, 100% { box-shadow:0 0 0 0 rgba(29,185,84,.75); }
     50% { box-shadow:0 0 0 8px rgba(29,185,84,0); }
   }
-  .turno-item.turno-mia{
+  .turno-item.turno-mia, .mis-peticiones-item.turno-mia{
     border:2px solid #1db954; animation:latidoTurnoRapido .9s ease-in-out infinite;
   }
   .turno-aviso{color:#1db954; font-weight:800; font-size:.78rem; margin-top:3px;}
+  .mis-peticiones-info .estado.estado-turno{color:#1db954;}
 
   /* Diálogo de sugerir canción: mismo lenguaje visual que el bloqueo de
      sesión (overlay a pantalla completa, tarjeta centrada), pero este sí
@@ -1206,6 +1207,9 @@
       return;
     }
 
+    // Posición de cada solicitud dentro de la cola en directo (0 = la
+    // siguiente en cantarse), para poder avisar si a alguna le queda poco.
+    let posicionPorId = {};
     try {
       let remotas;
       if (MODO_LOCAL) {
@@ -1215,9 +1219,9 @@
         remotas = await res.json();
       }
       if (Array.isArray(remotas)) {
-        const pendientesRemotas = new Set(
-          remotas.filter(r => r.Estado !== 'Cantada').map(r => String(r.IdSolicitud))
-        );
+        const enCola = remotas.filter(r => r.Estado !== 'Cantada');
+        enCola.forEach((r, idx) => { posicionPorId[String(r.IdSolicitud)] = idx; });
+        const pendientesRemotas = new Set(enCola.map(r => String(r.IdSolicitud)));
         const rastreadas = tracked.filter(p => pendientesRemotas.has(String(p.IdSolicitud)));
         if (rastreadas.length !== tracked.length) guardarMisPeticionesLocal(rastreadas);
         tracked = rastreadas;
@@ -1251,17 +1255,24 @@
               <button type="button" class="mis-peticiones-toggle" aria-label="Mostrar u ocultar">▾</button>
             </div>
             <div class="mis-peticiones-cuerpo">
-              ${g.items.map(p => `
-                <div class="mis-peticiones-item">
+              ${g.items.map(p => {
+                const posicion = posicionPorId.hasOwnProperty(String(p.IdSolicitud)) ? posicionPorId[String(p.IdSolicitud)] : null;
+                const esProxima = posicion !== null && posicion < 3;
+                const textoEstado = esProxima
+                  ? (posicion === 0 ? '🔥 ¡Prepárate, te toca!' : `🔥 ¡Prepárate! En ${posicion + 1} canciones te toca`)
+                  : '⏳ Pendiente de cantar';
+                return `
+                <div class="mis-peticiones-item${esProxima ? ' turno-mia' : ''}">
                   <div class="cover" data-artista="${escapeAttr(p.Artista)}" data-titulo="${escapeAttr(p.Titulo)}" data-imagen="${escapeAttr(imagenParaMiPeticion(p))}"></div>
                   <div class="mis-peticiones-info">
                     <div class="titulo">${escapeHtml(p.Titulo)}</div>
                     <div class="artista">${escapeHtml(p.Artista)}</div>
-                    <div class="estado">⏳ Pendiente de cantar</div>
+                    <div class="estado${esProxima ? ' estado-turno' : ''}">${textoEstado}</div>
                   </div>
                   <button type="button" class="btn-anular-peticion" data-id="${escapeAttr(p.IdSolicitud)}">Anular</button>
                 </div>
-              `).join('')}
+              `;
+              }).join('')}
               <p class="mis-peticiones-nota">El equipo del karaoke se encargará de atenderlas. Mantente atento, te llamaremos por tu nombre cuando te toque cantar.</p>
             </div>
           </div>
