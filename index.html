@@ -446,6 +446,18 @@
   .turno-info .artista{color:var(--muted); font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .turno-info .quien{color:var(--accent2); font-size:.74rem; font-weight:700; margin-top:2px;}
 
+  /* Si quien pidió una de las 3 primeras canciones de la cola es quien
+     está mirando el turno (en este mismo navegador), esa caja late en
+     verde rápido y avisa por escrito, para que no se le pase su turno. */
+  @keyframes latidoTurnoRapido{
+    0%, 100% { box-shadow:0 0 0 0 rgba(29,185,84,.75); }
+    50% { box-shadow:0 0 0 8px rgba(29,185,84,0); }
+  }
+  .turno-item.turno-mia{
+    border:2px solid #1db954; animation:latidoTurnoRapido .9s ease-in-out infinite;
+  }
+  .turno-aviso{color:#1db954; font-weight:800; font-size:.78rem; margin-top:3px;}
+
   /* Diálogo de sugerir canción: mismo lenguaje visual que el bloqueo de
      sesión (overlay a pantalla completa, tarjeta centrada), pero este sí
      se puede cerrar. Centrado en vez de anclado abajo, para que no quede
@@ -1541,17 +1553,29 @@
       turnoLista.innerHTML = '<div class="empty">No hay ninguna canción en cola ahora mismo 🎤</div>';
       return;
     }
-    turnoLista.innerHTML = cola.map((s, i) => `
-      <div class="turno-item">
+    // Solo se avisa en las 3 primeras posiciones, y solo si quien está
+    // mirando el turno es quien pidió esa canción concreta (rastreado en
+    // este mismo navegador vía "Tus solicitudes").
+    const misIds = new Set(misPeticiones().map(p => String(p.IdSolicitud)));
+
+    turnoLista.innerHTML = cola.map((s, i) => {
+      const esMia = i < 3 && misIds.has(String(s.IdSolicitud));
+      const avisoTurno = esMia
+        ? `<div class="turno-aviso">🔥 ${i === 0 ? '¡Prepárate, te toca!' : `¡Prepárate! En ${i + 1} canciones te toca`}</div>`
+        : '';
+      return `
+      <div class="turno-item${esMia ? ' turno-mia' : ''}">
         <span class="turno-numero">${i + 1}</span>
         <div class="cover" data-artista="${escapeAttr(s.Artista)}" data-titulo="${escapeAttr(s.Titulo)}" data-imagen="${escapeAttr(imagenParaMiPeticion(s))}"></div>
         <div class="turno-info">
           <div class="titulo">${escapeHtml(s.Titulo)}</div>
           <div class="artista">${escapeHtml(s.Artista)}</div>
           <div class="quien">🙋 ${escapeHtml(s.Solicitante)}</div>
+          ${avisoTurno}
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
     turnoLista.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
   }
   function cerrarTurno() {
