@@ -1550,14 +1550,18 @@
     return Array.isArray(lista) ? lista : [];
   }
 
-  async function abrirTurnoActuacion() {
-    overlayTurno.classList.add('open');
-    turnoLista.innerHTML = '<div class="loading">Cargando…</div>';
+  let turnoIntervalId = null;
+
+  // primeraVez=true muestra "Cargando…" y errores; en los refrescos
+  // automáticos posteriores, si falla uno (p.ej. un corte de red breve),
+  // simplemente se deja lo que ya había en pantalla hasta el siguiente.
+  async function cargarTurnoActuacion(primeraVez) {
+    if (primeraVez) turnoLista.innerHTML = '<div class="loading">Cargando…</div>';
     let cola;
     try {
       cola = (await solicitudesEnDirecto()).filter(s => s.Estado !== 'Cantada');
     } catch (e) {
-      turnoLista.innerHTML = '<div class="empty">No se pudo cargar. Comprueba tu conexión.</div>';
+      if (primeraVez) turnoLista.innerHTML = '<div class="empty">No se pudo cargar. Comprueba tu conexión.</div>';
       return;
     }
     if (cola.length === 0) {
@@ -1589,8 +1593,18 @@
     }).join('');
     turnoLista.querySelectorAll('.cover').forEach(el => observadorCaratulas.observe(el));
   }
+
+  async function abrirTurnoActuacion() {
+    overlayTurno.classList.add('open');
+    await cargarTurnoActuacion(true);
+    // Mientras el diálogo esté abierto, se refresca sola cada pocos
+    // segundos (antes había que cerrarla y volver a abrirla para verlo).
+    if (turnoIntervalId) clearInterval(turnoIntervalId);
+    turnoIntervalId = setInterval(() => cargarTurnoActuacion(false), 6000);
+  }
   function cerrarTurno() {
     overlayTurno.classList.remove('open');
+    if (turnoIntervalId) { clearInterval(turnoIntervalId); turnoIntervalId = null; }
   }
   document.getElementById('btnAbrirTurno').addEventListener('click', abrirTurnoActuacion);
   document.getElementById('cerrarTurno').addEventListener('click', cerrarTurno);
